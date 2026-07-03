@@ -148,6 +148,18 @@ async function resolveSymbol(name, isin, exchange) {
     return symCache[key];
   }
   const suffix = exchange === 'BSE' ? '.BO' : '.NS';
+  // exact trading symbol (e.g. "TATSILV" from a broker screenshot)? verify directly
+  if (name && /^[A-Z0-9&-]{2,20}$/.test(name.trim()) && !isin) {
+    try {
+      const direct = name.trim() + suffix;
+      const q = await yahoo.quoteFromChart(direct);
+      if (q?.price) {
+        symCache[key] = { symbol: direct, name: q.name || name };
+        saveSymCache();
+        return symCache[key];
+      }
+    } catch { /* fall through to search */ }
+  }
   const tryQueries = [];
   if (alias?.query) tryQueries.push(alias.query);
   if (isin) tryQueries.push(isin);

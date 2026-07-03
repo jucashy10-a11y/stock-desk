@@ -1227,6 +1227,7 @@ async function renderPortfolio() {
         <button class="btn sm danger-ghost" id="pf-delete">Delete</button>
         <button class="btn primary sm" id="pf-add-tx">+ Add Stock</button>
         <button class="btn sm" id="pf-import">⬆ Import</button>
+        <button class="btn sm" id="pf-shot">📷 Screenshot</button>
       </div>
     </div>
     <div class="acct-pills" id="pf-pills"></div>
@@ -1274,7 +1275,7 @@ async function renderPortfolio() {
       };
     });
     // account-specific actions don't apply to the combined view
-    for (const id of ['pf-rename', 'pf-delete', 'pf-add-tx', 'pf-import']) {
+    for (const id of ['pf-rename', 'pf-delete', 'pf-add-tx', 'pf-import', 'pf-shot']) {
       const el = $('#' + id);
       if (el) el.disabled = isAll();
     }
@@ -1615,6 +1616,129 @@ async function renderPortfolio() {
     dz.ondrop = (e) => {
       e.preventDefault(); dz.classList.remove('drag');
       if (e.dataTransfer.files[0]) handle(e.dataTransfer.files[0]);
+    };
+  };
+
+  // ---- import from broker screenshot (OCR in the browser) ----
+  $('#pf-shot').onclick = () => {
+    const ov = modal('Import from Screenshot', `
+      <p class="muted" style="font-size:.82rem; margin-bottom:12px">
+        Upload the trade/positions screenshot you get on WhatsApp (XTS, Kite, etc.).
+        Text is read <b>on your device</b>, then you confirm each transaction before it's saved.
+      </p>
+      <div class="dropzone" id="shot-dz">Drop the image here or <b>click to browse</b></div>
+      <input type="file" id="shot-file" accept="image/*" class="hidden" />
+      <div id="shot-status" style="margin-top:12px; font-size:.82rem"></div>
+      <div id="shot-preview" style="margin-top:8px"></div>`);
+    const dz = $('#shot-dz', ov);
+    const fileInput = $('#shot-file', ov);
+    const status = $('#shot-status', ov);
+
+    async function ensureTesseract() {
+      if (window.Tesseract) return;
+      status.innerHTML = 'Loading OCR engine (first time only)…';
+      await new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://unpkg.com/tesseract.js@5.1.1/dist/tesseract.min.js';
+        s.onload = res;
+        s.onerror = () => rej(new Error('Could not load the OCR library — check internet'));
+        document.head.appendChild(s);
+      });
+    }
+
+    function parseShotText(text) {
+      const rows = [];
+      for (const raw of text.split(/\n/)) {
+        const tokens = raw.trim().split(/\s+/);
+        const idx = tokens.findIndex((t) => /^(NRML|MIS|CNC|NRM1|NRMI|NAML)$/i.test(t));
+        if (idx === -1 || idx + 1 >= tokens.length) continue;
+        const symbol = (tokens[idx + 1] || '').toUpperCase().replace(/[^A-Z0-9&-]/g, '');
+        if (!symbol || symbol.length < 2 || /^\d+$/.test(symbol)) continue;
+        const nums = tokens.slice(idx + 2).map((t) => parseFloat(t.replace(/,/g, ''))).filter((n) => isFinite(n) && n >= 0);
+        if (nums.length < 2) continue;
+        const qty = Math.round(nums[0]);
+        if (!qty || qty <= 0) continue;
+        let price = null;
+        if (nums.length >= 3 && nums[2] > 0 && Math.abs(nums[2] * qty - nums[1]) / Math.max(nums[1], 1) < 0.25) price = nums[2];
+        else if (nums[1] > 0) price = +(nums[1] / qty).toFixed(2);
+        if (!price || price <= 0) continue;
+        rows.push({ symbol, type: 'BUY', qty, price });
+      }
+      return rows;
+    }
+
+    function showPreview(rows) {
+      if (!rows.length) {
+        status.innerHTML = '<span class="down">Could not detect any trade rows. Try a sharper screenshot, or add manually with + Add Stock.</span>';
+        return;
+      }
+      status.innerHTML = `<b class="up">Found ${rows.length} transaction${rows.length > 1 ? 's' : ''}</b> — check &amp; edit before saving:`;
+      $('#shot-preview', ov).innerHTML = `
+        <table class="data" style="font-size:.8rem"><thead><tr><th style="text-align:left">Symbol</th><th>Type</th><th>Qty</th><th>Price ₹</th><th></th></tr></thead>
+        <tbody>${rows.map((r, i) => `<tr>
+          <td><input data-f="symbol" data-i="${i}" value="${esc(r.symbol)}" style="width:110px; padding:5px 7px; border:1px solid var(--border); border-radius:6px; font-weight:700"/></td>
+          <td><select data-f="type" data-i="${i}" style="padding:5px; border:1px solid var(--border); border-radius:6px"><option ${r.type === 'BUY' ? 'selected' : ''}>BUY</option><option ${r.type === 'SELL' ? 'selected' : ''}>SELL</option></select></td>
+          <td><input data-f="qty" data-i="${i}" type="number" value="${r.qty}" style="width:70px; padding:5px 7px; border:1px solid var(--border); border-radius:6px; text-align:right"/></td>
+          <td><input data-f="price" data-i="${i}" type="number" step="0.01" value="${r.price}" style="width:90px; padding:5px 7px; border:1px solid var(--border); border-radius:6px; text-align:right"/></td>
+          <td><button class="btn sm danger-ghost" data-drop="${i}">✕</button></td>
+        </tr>`).join('')}</tbody></table>
+        <button class="btn primary" id="shot-save" style="width:100%; margin-top:12px">Save to ${esc(pfList.find((p) => p.id === activePfId)?.name || 'portfolio')}</button>`;
+      $$('#shot-preview [data-f]', ov).forEach((el) => {
+        el.addEventListener('change', () => {
+          const r = rows[+el.dataset.i];
+          if (el.dataset.f === 'qty') r.qty = parseFloat(el.value);
+          else if (el.dataset.f === 'price') r.price = parseFloat(el.value);
+          else if (el.dataset.f === 'type') r.type = el.value;
+          else r.symbol = el.value.toUpperCase().trim();
+        });
+      });
+      $$('#shot-preview [data-drop]', ov).forEach((b) => {
+        b.onclick = () => { rows.splice(+b.dataset.drop, 1); showPreview(rows); };
+      });
+      $('#shot-save', ov).onclick = async () => {
+        const valid = rows.filter((r) => r.symbol && r.qty > 0 && r.price > 0);
+        if (!valid.length) return toast('Nothing to save', 'err');
+        $('#shot-save', ov).disabled = true;
+        const today = new Date();
+        const d = `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}/${today.getFullYear()}`;
+        const csv = valid.map((r) => `,${r.symbol},${d},${r.type === 'SELL' ? 'Sell' : 'Buy'},NSE,${r.qty},${r.price}`).join('\n');
+        try {
+          const res = await api(`/api/portfolios/${activePfId}/import`, { method: 'POST', body: JSON.stringify({ csv }) });
+          toast(`Saved ${res.imported} transaction${res.imported > 1 ? 's' : ''} 🎉`, 'ok');
+          if (res.failed?.length) toast('Could not match: ' + res.failed.map((f) => f.name).join(', '), 'err');
+          ov.remove();
+          loadList();
+          load();
+        } catch (e) {
+          toast(e.message, 'err');
+          $('#shot-save', ov).disabled = false;
+        }
+      };
+    }
+
+    async function handleImage(file) {
+      try {
+        await ensureTesseract();
+        status.innerHTML = '<div class="spinner" style="margin:6px auto"></div><div style="text-align:center">Reading screenshot… <b id="shot-pct">0%</b></div>';
+        const { data } = await window.Tesseract.recognize(file, 'eng', {
+          logger: (m) => {
+            if (m.status === 'recognizing text' && $('#shot-pct', ov)) {
+              $('#shot-pct', ov).textContent = Math.round(m.progress * 100) + '%';
+            }
+          },
+        });
+        showPreview(parseShotText(data.text || ''));
+      } catch (e) {
+        status.innerHTML = `<span class="down">${esc(e.message)}</span>`;
+      }
+    }
+    dz.onclick = () => fileInput.click();
+    fileInput.onchange = () => { if (fileInput.files[0]) handleImage(fileInput.files[0]); };
+    dz.ondragover = (e) => { e.preventDefault(); dz.classList.add('drag'); };
+    dz.ondragleave = () => dz.classList.remove('drag');
+    dz.ondrop = (e) => {
+      e.preventDefault(); dz.classList.remove('drag');
+      if (e.dataTransfer.files[0]) handleImage(e.dataTransfer.files[0]);
     };
   };
 
