@@ -440,6 +440,11 @@ app.post('/api/kite/session', wrap(async (req, res) => {
   res.json(await kite.createSession(String(req.body?.requestToken || '').trim()));
 }));
 
+/** Adopt today's access token generated on another instance (PC -> cloud sync). */
+app.post('/api/kite/session-import', wrap(async (req, res) => {
+  res.json(kite.importSession(req.body || {}));
+}));
+
 // SPA fallback
 app.get('*', (req, res) => {
   if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'Not found' });

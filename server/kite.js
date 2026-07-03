@@ -32,6 +32,17 @@ function save(cfg) {
   gistsync.backupSoon('kite.json', () => JSON.stringify(cfg, null, 2));
 }
 
+/** Adopt an already-generated access token (synced from another instance). */
+function importSession({ accessToken, tokenDate, userName }) {
+  if (!accessToken || tokenDate !== todayIST()) throw new Error('Token missing or not from today (IST)');
+  const cfg = load();
+  cfg.accessToken = accessToken;
+  cfg.tokenDate = tokenDate;
+  cfg.userName = userName || cfg.userName || '';
+  save(cfg);
+  return status();
+}
+
 /** Restore today's Kite session from the gist after a fresh boot. */
 async function cloudRestore() {
   try {
@@ -327,4 +338,4 @@ async function mcxMiniQuotes() {
   return { gold: mk(gold), silver: mk(silver), source: 'mcx' };
 }
 
-module.exports = { status, setCredentials, disconnect, createSession, cloudRestore, quotes, history, mcxMiniQuotes };
+module.exports = { status, setCredentials, disconnect, createSession, importSession, cloudRestore, quotes, history, mcxMiniQuotes };
