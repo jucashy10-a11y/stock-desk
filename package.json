@@ -1,0 +1,16 @@
+{
+  "name": "stockdesk",
+  "version": "1.0.0",
+  "description": "MoneyControl x NSE style market terminal - track NSE/BSE stocks, research companies, manage portfolios",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node server/index.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

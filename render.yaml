@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: stockdesk
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server/index.js
+    envVars:
+      - key: APP_PASSWORD
+        sync: false
+      - key: KITE_API_KEY
+        sync: false
+      - key: KITE_API_SECRET
+        sync: false
+      - key: GIST_ID
+        sync: false
+      - key: GIST_TOKEN
+        sync: false

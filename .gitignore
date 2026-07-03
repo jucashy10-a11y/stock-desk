@@ -1,0 +1,14 @@
+# dependencies
+node_modules/
+
+# secrets & local state — never commit
+data/kite.json
+.env
+
+# user portfolio data (comment out if you want it versioned)
+data/portfolios.json
+data/symbol-cache.json
+
+# OS noise
+Thumbs.db
+.DS_Store

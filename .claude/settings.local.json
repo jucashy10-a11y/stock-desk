@@ -1,0 +1,37 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c ' *)",
+      "Bash(mkdir -p /tmp_extract_mc)",
+      "Bash(pip install *)",
+      "Bash(olevba \"moneycontrol_portfolio_template_090426 \\(3\\).xlsm\")",
+      "Bash(powershell -Command \"\\(Get-Content moneycontrol_portfolio_upload.csv\\) -replace '28/05/2026','05/28/2026' | Set-Content moneycontrol_portfolio_upload.csv\")",
+      "Bash(mv moneycontrol_upload_part1.csv \"Upload_1_of_5_Stocks_A-to-E.csv\")",
+      "Bash(mv moneycontrol_upload_part2.csv \"Upload_2_of_5_Stocks_F-to-L.csv\")",
+      "Bash(mv moneycontrol_upload_part3.csv \"Upload_3_of_5_Stocks_M-to-R.csv\")",
+      "Bash(mv moneycontrol_upload_part4.csv \"Upload_4_of_5_Stocks_S-to-V.csv\")",
+      "Bash(mv moneycontrol_upload_part5.csv \"Upload_5_of_5_Stocks_V-to-Z.csv\")",
+      "Bash(python3 -c ' *)",
+      "PowerShell(npm install --no-audit --no-fund)",
+      "PowerShell($pf = Invoke-RestMethod \"http://localhost:3210/api/portfolios/default\"; $tx = $pf.transactions | Where-Object { $_.symbol -eq \"YESBANK.NS\" -and $_.qty -eq 10 -and $_.price -eq 20.54 }; if \\($tx\\) { Invoke-RestMethod -Method Delete \"http://localhost:3210/api/portfolios/default/transactions/$\\($tx.id\\)\" | Out-Null; \"removed test tx $\\($tx.id\\)\" } else { \"no test tx found\" })",
+      "PowerShell(Invoke-RestMethod \"http://localhost:3210/api/kite/status\")",
+      "PowerShell(Invoke-RestMethod -Uri \"http://localhost:3210/api/kite/session\" -Method Post -ContentType \"application/json\" -Body '{\"requestToken\":\"nJpRfyPWe1fLGkh4uObiUC7r74JvR1P6\"}')",
+      "PowerShell(Invoke-RestMethod \"http://localhost:3210/api/quotes?symbols=RELIANCE.NS,YESBANK.NS\")",
+      "PowerShell(Invoke-RestMethod -Uri \"http://localhost:3210/api/kite/session\" -Method Post -ContentType \"application/json\" -Body '{\"requestToken\":\"14VMtHVD0fBFZCKcIT1zJ6VAj345X6CW\"}')",
+      "PowerShell(Invoke-RestMethod \"http://localhost:3210/api/quotes?symbols=RELIANCE.NS\")",
+      "PowerShell(foreach \\($s in @\\(\"RELIANCE.NS\",\"YESBANK.NS\",\"UNITECH.NS\",\"SWIGGY.NS\"\\)\\) { try { $r = Invoke-RestMethod \"http://localhost:3210/api/research/$s\"; \"$s -> OK score=$\\($r.scores.composite\\) verdict=$\\($r.verdict\\) pb=$\\($r.fundamentals.pb\\)\" } catch { \"$s -> FAIL $\\($_.Exception.Message\\)\" } })",
+      "PowerShell($f = Invoke-RestMethod \"http://localhost:3210/api/financials/RELIANCE.NS\"; \"annual rows: $\\($f.annual.Count\\), quarterly rows: $\\($f.quarterly.Count\\)\"; $f.annual | Select-Object date, revenue, netIncome, eps, netMargin | Format-Table; $r = Invoke-RestMethod \"http://localhost:3210/api/research/TCS.NS\"; \"TCS research OK: score=$\\($r.scores.composite\\), fairValue=$\\($r.valuation.fairValue\\), revCAGR=$\\($r.statements.revenueCagr3y\\)\"; $h = Invoke-RestMethod \"http://localhost:3210/api/history/RELIANCE.NS?range=1y\"; \"history source: $\\($h.source\\), candles: $\\($h.candles.Count\\)\")",
+      "PowerShell(Start-Process netsh -ArgumentList 'advfirewall firewall add rule name=\"StockDesk 3210\" dir=in action=allow protocol=TCP localport=3210' -Verb RunAs -Wait; netsh advfirewall firewall show rule name=\"StockDesk 3210\")",
+      "PowerShell(foreach \\($i in 11..14\\) { $p = \"C:\\\\Users\\\\admin\\\\Downloads\\\\Stocks \\($i\\).xls\"; $bytes = [System.IO.File]::ReadAllBytes\\($p\\)[0..7]; $hex = \\($bytes | ForEach-Object { $_.ToString\\('X2'\\) }\\) -join ' '; \"$p : $\\(\\(Get-Item $p\\).Length\\) bytes, header: $hex\" })",
+      "PowerShell($html = Get-Content -Raw \"C:\\\\Users\\\\admin\\\\Downloads\\\\Stocks \\(11\\).xls\"; $html.Substring\\(0, 3000\\))",
+      "PowerShell(node \"C:\\\\Users\\\\admin\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-admin-OneDrive-Desktop-moneycontrol\\\\1f2818ad-f837-4f5c-bfe3-7a129c788f5e\\\\scratchpad\\\\import-accounts.js\")",
+      "PowerShell(foreach \\($q in @\\(\"TMCV\", \"Tata Teleservices\", \"Generic Pharmasec\", \"Tata Motors\"\\)\\) { $r = Invoke-RestMethod \"http://localhost:3210/api/search?q=$\\([uri]::EscapeDataString\\($q\\)\\)\"; \"--- $q\"; $r | Select-Object -First 4 symbol, name, exchange | Format-Table -HideTableHeaders | Out-String })",
+      "PowerShell(Invoke-RestMethod -Uri \"http://localhost:3210/api/kite/session\" -Method Post -ContentType \"application/json\" -Body '{\"requestToken\":\"8uTcmQ8g0iwiNUFxMfGWxF04UC6WRDZn\"}')",
+      "PowerShell($q = Invoke-RestMethod \"http://localhost:3210/api/quotes?symbols=YESBANK.NS\"; \"source: $\\($q.'YESBANK.NS'.source\\), price: $\\($q.'YESBANK.NS'.price\\)\"; $pf = Invoke-RestMethod \"http://localhost:3210/api/portfolios/all\"; \"net worth: ₹$\\([math]::Round\\($pf.summary.current\\)\\), day P&L: ₹$\\([math]::Round\\($pf.summary.dayPnl\\)\\)\")",
+      "PowerShell($t1 = Measure-Command { $pf1 = Invoke-RestMethod \"http://localhost:3210/api/portfolios/all\" }; $t2 = Measure-Command { $pf2 = Invoke-RestMethod \"http://localhost:3210/api/portfolios/all\" }; $q = Invoke-RestMethod \"http://localhost:3210/api/quotes?symbols=RELIANCE.NS\"; \"cold load: $\\([math]::Round\\($t1.TotalMilliseconds\\)\\) ms | cached load: $\\([math]::Round\\($t2.TotalMilliseconds\\)\\) ms | quote source: $\\($q.'RELIANCE.NS'.source\\) | kite status: $\\(\\(Invoke-RestMethod 'http://localhost:3210/api/kite/status'\\).connected\\)\")",
+      "PowerShell(try { $r = Invoke-WebRequest -Uri \"http://192.168.1.101:3210/api/kite/status\" -UseBasicParsing -TimeoutSec 5; \"OK $\\($r.StatusCode\\): $\\($r.Content\\)\" } catch { \"failed: $\\($_.Exception.Message\\)\" })",
+      "PowerShell(\"hostname: $env:COMPUTERNAME\"; Get-Service -Name Dnscache | Select-Object Status; Get-NetAdapter -Physical | Where-Object Status -eq 'Up' | Select-Object Name, MacAddress)",
+      "PowerShell($f = Invoke-RestMethod \"http://localhost:3210/api/financials/WELSPLSOL.NS\"; \"annual: $\\($f.annual.Count\\) rows, quarterly: $\\($f.quarterly.Count\\) rows\"; $r = Invoke-RestMethod \"http://localhost:3210/api/research/WELSPLSOL.NS\"; \"research fundamentalsAvailable: $\\($r.fundamentalsAvailable\\); fund pe=$\\($r.fundamentals.pe\\) roe=$\\($r.fundamentals.roe\\) margin=$\\($r.fundamentals.profitMargin\\) revGrowth=$\\($r.fundamentals.revenueGrowth\\); valuation: $\\($r.valuation.method\\)\")"
+    ]
+  }
+}
