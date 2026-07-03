@@ -130,6 +130,36 @@ function parseRatios(html) {
   return out;
 }
 
+/** Promoter/FII/DII/Public % over recent quarters from section id="shareholding". */
+function parseShareholding(html) {
+  const sec = parseSection(html, 'shareholding');
+  if (!sec || !sec.periods.length) return null;
+  const groups = [
+    ['promoters', ['Promoters']],
+    ['fiis', ['FIIs']],
+    ['diis', ['DIIs']],
+    ['government', ['Government']],
+    ['public', ['Public']],
+  ];
+  const quarters = sec.periods.map((p, i) => {
+    const row = { period: p };
+    for (const [field, labels] of groups) {
+      const vals = pick(sec.rows, labels);
+      row[field] = vals ? parseNum(vals[i]) : null;
+    }
+    return row;
+  }).filter((r) => r.promoters != null || r.public != null);
+  if (!quarters.length) return null;
+  const latest = quarters[quarters.length - 1];
+  const prev = quarters.length > 1 ? quarters[quarters.length - 2] : null;
+  return {
+    latest,
+    promoterTrend: prev && latest.promoters != null && prev.promoters != null ? latest.promoters - prev.promoters : null,
+    fiiTrend: prev && latest.fiis != null && prev.fiis != null ? latest.fiis - prev.fiis : null,
+    quarters: quarters.slice(-6),
+  };
+}
+
 async function fetchPage(base, consolidated) {
   const url = `https://www.screener.in/company/${encodeURIComponent(base)}/${consolidated ? 'consolidated/' : ''}`;
   const res = await fetch(url, { headers: { 'User-Agent': UA, Accept: 'text/html' } });
@@ -164,6 +194,7 @@ async function fromScreener(symbol) {
     annual,
     quarterly: qSeries,
     ratios: parseRatios(html),
+    shareholding: parseShareholding(html),
     source: 'screener',
   };
 }

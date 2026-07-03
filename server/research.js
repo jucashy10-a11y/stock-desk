@@ -266,10 +266,19 @@ async function research(symbol) {
   const statements = {
     annual,
     quarterly: fin?.quarterly || [],
+    shareholding: fin?.shareholding || null,
     revenueCagr3y: null,
     profitCagr3y: null,
     marginTrend: null,
   };
+  const sh = statements.shareholding;
+  if (sh?.promoterTrend != null && sh.promoterTrend <= -2) {
+    fScore -= 4;
+    fPoints.push({ good: false, text: `Promoters trimmed stake by ${Math.abs(sh.promoterTrend).toFixed(1)}% last quarter` });
+  } else if (sh?.fiiTrend != null && sh.fiiTrend >= 1) {
+    fScore += 3;
+    fPoints.push({ good: true, text: `FIIs raised their stake by ${sh.fiiTrend.toFixed(1)}% last quarter` });
+  }
   if (annual.length >= 3) {
     const yrs = Math.min(annual.length - 1, 4);
     const first = annual[annual.length - 1 - yrs];

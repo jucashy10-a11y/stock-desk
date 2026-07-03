@@ -182,4 +182,9 @@ function ensure(force = false) {
   return state;
 }
 
-module.exports = { ensure };
+/** Current state without triggering a build (cheap, for dashboard). */
+function peek() {
+  return state;
+}
+
+module.exports = { ensure, peek };

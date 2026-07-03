@@ -12,6 +12,9 @@ const kite = require('./kite');
 const research = require('./research');
 const ideas = require('./ideas');
 const commodities = require('./commodities');
+const news = require('./news');
+const gistsync = require('./gistsync');
+const fs = require('fs');
 const portfolio = require('./portfolio');
 const { INDICES, UNIVERSE } = require('./symbols');
 
@@ -206,6 +209,88 @@ app.get('/api/research/:symbol', wrap(async (req, res) => {
   res.json(await research.research(req.params.symbol));
 }));
 
+/** Per-stock news (Google News RSS). */
+app.get('/api/news/:symbol', wrap(async (req, res) => {
+  const sym = req.params.symbol;
+  const name = String(req.query.q || '').trim() || NAME_MAP.get(sym) || sym.replace(/\.(NS|BO)$/, '');
+  res.json(await news.forQuery(`"${name}" stock India`));
+}));
+
+// ---------- watchlist ----------
+
+const WL_FILE = path.join(__dirname, '..', 'data', 'watchlist.json');
+function loadWatchlist() {
+  try { return JSON.parse(fs.readFileSync(WL_FILE, 'utf8')).symbols || []; } catch { return []; }
+}
+function saveWatchlist(symbols) {
+  fs.mkdirSync(path.dirname(WL_FILE), { recursive: true });
+  fs.writeFileSync(WL_FILE, JSON.stringify({ symbols }, null, 2));
+  gistsync.backupSoon('watchlist.json', () => JSON.stringify({ symbols }, null, 2));
+}
+
+async function watchlistCloudRestore() {
+  const content = await gistsync.restore('watchlist.json');
+  if (!content) return;
+  try {
+    const p = JSON.parse(content);
+    if (Array.isArray(p.symbols)) {
+      fs.mkdirSync(path.dirname(WL_FILE), { recursive: true });
+      fs.writeFileSync(WL_FILE, content);
+    }
+  } catch {}
+}
+
+app.get('/api/watchlist', wrap(async (req, res) => {
+  const symbols = loadWatchlist();
+  const quotes = symbols.length ? await getQuotes(symbols) : {};
+  res.json(symbols.map((s) => ({ symbol: s, quote: quotes[s] || null })));
+}));
+
+app.post('/api/watchlist/:symbol', wrap(async (req, res) => {
+  const symbols = loadWatchlist();
+  const s = req.params.symbol;
+  const idx = symbols.indexOf(s);
+  if (idx >= 0) symbols.splice(idx, 1);
+  else symbols.unshift(s);
+  saveWatchlist(symbols.slice(0, 50));
+  res.json({ watching: idx < 0, symbols });
+}));
+
+/** Peer comparison within the built-in universe, by sector. */
+app.get('/api/peers/:symbol', wrap(async (req, res) => {
+  const sym = req.params.symbol;
+  const self = UNIVERSE.find((u) => u.symbol === sym);
+  let sector = self?.sector;
+  if (!sector) {
+    const f = await yahoo.fundamentals(sym).catch(() => null);
+    sector = f?.sector || null;
+  }
+  const peers = sector
+    ? UNIVERSE.filter((u) => u.sector === sector && u.symbol !== sym).slice(0, 6)
+    : [];
+  const symbols = [sym, ...peers.map((p) => p.symbol)];
+  const quotes = await yahoo.quotes(symbols); // yahoo: has PE + mcap
+  const rows = symbols
+    .map((s) => {
+      const q = quotes[s];
+      if (!q) return null;
+      return {
+        symbol: s,
+        name: NAME_MAP.get(s) || q.name,
+        self: s === sym,
+        price: q.price,
+        changePct: q.changePct,
+        pe: q.pe ?? null,
+        marketCap: q.marketCap ?? null,
+        yearHigh: q.yearHigh,
+        yearLow: q.yearLow,
+        pctFromHigh: q.yearHigh ? ((q.price - q.yearHigh) / q.yearHigh) * 100 : null,
+      };
+    })
+    .filter(Boolean);
+  res.json({ sector: sector || 'Unknown', rows });
+}));
+
 /** Gold & Silver desk: live INR prices, projections and accumulation signal. */
 app.get('/api/commodities', wrap(async (req, res) => {
   res.json(await commodities.get());
@@ -213,6 +298,7 @@ app.get('/api/commodities', wrap(async (req, res) => {
 
 /** Idea scanner: returns picks when ready, or build progress while scanning. */
 app.get('/api/ideas', wrap(async (req, res) => {
+  if (req.query.peek === '1') return res.json(ideas.peek());
   res.json(ideas.ensure(req.query.force === '1'));
 }));
 
@@ -360,7 +446,7 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
 });
 
-portfolio.cloudRestore().finally(() => {
+Promise.allSettled([portfolio.cloudRestore(), kite.cloudRestore(), watchlistCloudRestore()]).finally(() => {
   app.listen(PORT, () => {
     console.log(`StockDesk running at http://localhost:${PORT}`);
   });

@@ -227,11 +227,30 @@ window.addEventListener('hashchange', route);
 
 // ================= DASHBOARD =================
 
+function istGreeting() {
+  const h = +new Intl.DateTimeFormat('en-IN', { hour: 'numeric', hour12: false, timeZone: 'Asia/Kolkata' }).format(new Date());
+  if (h < 12) return 'Good morning ☀️';
+  if (h < 17) return 'Good afternoon 🌤️';
+  return 'Good evening 🌆';
+}
+
 async function renderDashboard() {
   app.innerHTML = `
-    <div class="page-title">Market Dashboard</div>
-    <div class="page-sub" id="dash-sub">Indian equities at a glance — NSE &amp; BSE</div>
+    <div class="dash-hero">
+      <div class="dh-left">
+        <div class="dh-greet">${istGreeting()}</div>
+        <div class="dh-date">${new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Asia/Kolkata' })}</div>
+        <div class="dh-idx" id="dh-idx"><span class="skeleton" style="width:220px;height:40px;display:inline-block"></span></div>
+      </div>
+      <div class="dh-opp" id="dh-opp"></div>
+    </div>
+    <div class="econ-strip" id="econ-strip"></div>
+    <div class="page-sub" id="dash-sub" style="margin-top:4px"></div>
     <div class="index-row" id="index-row">${'<div class="index-card"><div class="skeleton" style="height:52px"></div></div>'.repeat(6)}</div>
+    <div class="card" style="margin-bottom:16px" id="wl-card">
+      <div class="card-head"><span class="card-title">⭐ Watchlist</span><span class="muted" style="font-size:.72rem">star stocks from their page</span></div>
+      <div id="wl-body"></div>
+    </div>
     <div class="grid" style="grid-template-columns: 1fr 1fr; align-items:start" id="dash-grid">
       <div class="card">
         <div class="card-head"><span class="card-title">Top Gainers</span><span class="muted" style="font-size:.72rem">universe: NIFTY-150</span></div>
@@ -250,9 +269,72 @@ async function renderDashboard() {
       </div>
     </div>`;
 
+  async function loadExtras() {
+    // economic strip
+    try {
+      const econSyms = ['USDINR=X', 'GC=F', 'SI=F', 'CL=F', '^INDIAVIX', '^GSPC', 'DX-Y.NYB'];
+      const eq = await api('/api/quotes?symbols=' + encodeURIComponent(econSyms.join(',')));
+      const chip = (label, s, fmt = (v) => inr(v)) => {
+        const q = eq[s];
+        if (!q?.price) return '';
+        return `<div class="econ-chip"><span>${label}</span><b class="num">${fmt(q.price)}</b>
+          <i class="num ${cls(q.changePct)}">${pct(q.changePct)}</i></div>`;
+      };
+      $('#econ-strip').innerHTML =
+        chip('USD/INR', 'USDINR=X') + chip('Gold $', 'GC=F', (v) => '$' + inr(v, 0)) +
+        chip('Silver $', 'SI=F') + chip('Crude', 'CL=F', (v) => '$' + inr(v)) +
+        chip('India VIX', '^INDIAVIX') + chip('S&P 500', '^GSPC', (v) => inr(v, 0)) +
+        chip('Dollar Idx', 'DX-Y.NYB');
+    } catch {}
+    // top opportunity (only when a scan is already fresh — never triggers one)
+    try {
+      const st = await api('/api/ideas?peek=1');
+      const pick = st.status === 'ready' ? (st.results.shortTerm[0] || st.results.longTerm[0]) : null;
+      $('#dh-opp').innerHTML = pick
+        ? `<div class="dh-opp-label">TOP OPPORTUNITY TODAY</div>
+           <div class="dh-opp-body" onclick="location.hash='#/stock/${encodeURIComponent(pick.symbol)}'">
+             <div><b>${esc(dispSym(pick.symbol))}</b><span class="muted2">${esc(pick.name)}</span></div>
+             <div class="num up">up to ${pct(pick.potentialPct)}</div>
+             <div class="muted2">score ${pick.composite}/100 · ${esc(pick.conviction)} conviction</div>
+           </div>`
+        : `<div class="dh-opp-label">IDEA SCANNER</div>
+           <div class="dh-opp-body" onclick="location.hash='#/ideas'">
+             <div><b>Find +25% candidates</b></div><div class="muted2">run today's scan →</div>
+           </div>`;
+    } catch {}
+    // watchlist
+    try {
+      const wl = await api('/api/watchlist');
+      $('#wl-body').innerHTML = wl.length
+        ? `<table class="data"><tbody>${wl.map((w) => `
+            <tr onclick="location.hash='#/stock/${encodeURIComponent(w.symbol)}'">
+              <td><div class="stock-cell"><span class="s-sym">${esc(dispSym(w.symbol))}</span><span class="s-name">${esc(w.quote?.name || '')}</span></div></td>
+              <td class="num" style="font-weight:700">${w.quote ? '₹' + inr(w.quote.price) : '—'}</td>
+              <td><span class="chg-pill ${cls(w.quote?.changePct)}">${pct(w.quote?.changePct)}</span></td>
+              <td><button class="btn sm danger-ghost" data-unwatch="${esc(w.symbol)}">✕</button></td>
+            </tr>`).join('')}</tbody></table>`
+        : '<div class="empty" style="padding:18px">Nothing here yet — open any stock and hit the ☆ star to track it.</div>';
+      $$('#wl-body [data-unwatch]').forEach((b) => {
+        b.onclick = async (e) => {
+          e.stopPropagation();
+          await api('/api/watchlist/' + encodeURIComponent(b.dataset.unwatch), { method: 'POST' });
+          loadExtras();
+        };
+      });
+    } catch {}
+  }
+
   async function load() {
     try {
       const [indices, market] = await Promise.all([api('/api/indices'), api('/api/market')]);
+      const nifty = indices.find((i) => i.name === 'NIFTY 50')?.quote;
+      const sensex = indices.find((i) => i.name === 'SENSEX')?.quote;
+      $('#dh-idx').innerHTML = [['NIFTY', nifty], ['SENSEX', sensex]]
+        .filter(([, q]) => q)
+        .map(([nm, q]) => `<div class="dh-idx-item">
+          <span>${nm}</span><b class="num">${inr(q.price)}</b>
+          <i class="num ${cls(q.changePct)}">${arrow(q.changePct)} ${pct(q.changePct)}</i>
+        </div>`).join('');
       $('#index-row').innerHTML = indices
         .map((i) => {
           const q = i.quote;
@@ -292,7 +374,8 @@ async function renderDashboard() {
     }
   }
   await load();
-  setPoll(load, 15000);
+  loadExtras();
+  setPoll(() => { load(); loadExtras(); }, 15000);
 }
 
 // ================= MARKETS =================
@@ -313,12 +396,43 @@ async function renderMarkets() {
           <option value="price:-1">Price high→low</option>
           <option value="name:1">A – Z</option>
         </select>
+        <div class="seg"><button class="active" data-mv="table">Table</button><button data-mv="heat">Heatmap</button></div>
         <span class="muted" style="font-size:.74rem; margin-left:auto" id="mkt-count"></span>
       </div>
       <div style="overflow-x:auto" id="mkt-table"><div class="spinner"></div></div>
     </div>`;
 
   let rows = [];
+  let mktView = 'table';
+  $$('.seg [data-mv]').forEach((b) => {
+    b.onclick = () => {
+      $$('.seg [data-mv]').forEach((x) => x.classList.remove('active'));
+      b.classList.add('active');
+      mktView = b.dataset.mv;
+      draw();
+    };
+  });
+
+  function drawHeatmap(view) {
+    const bySector = new Map();
+    for (const r of view) {
+      if (!bySector.has(r.sector)) bySector.set(r.sector, []);
+      bySector.get(r.sector).push(r);
+    }
+    const tile = (r) => {
+      const c = r.quote.changePct ?? 0;
+      const a = 0.22 + Math.min(Math.abs(c) / 4, 1) * 0.7;
+      const bg = c >= 0 ? `rgba(8,140,100,${a})` : `rgba(200,50,50,${a})`;
+      return `<div class="hm-tile" style="background:${bg}" onclick="location.hash='#/stock/${encodeURIComponent(r.symbol)}'" title="${esc(r.name)}">
+        <b>${esc(dispSym(r.symbol))}</b><span class="num">${pct(c)}</span></div>`;
+    };
+    const sectors = [...bySector.entries()].sort((a, b) => b[1].length - a[1].length);
+    $('#mkt-table').innerHTML = `<div style="padding:14px">${sectors
+      .map(([sec, list]) => `<div class="hm-sector"><div class="hm-sec-name">${esc(sec || 'Other')}</div>
+        <div class="hm-grid">${list.sort((a, b) => (b.quote.changePct ?? 0) - (a.quote.changePct ?? 0)).map(tile).join('')}</div></div>`)
+      .join('')}</div>`;
+  }
+
   function draw() {
     const f = ($('#mkt-filter')?.value || '').toLowerCase();
     let view = rows.filter(
@@ -331,6 +445,8 @@ async function renderMarkets() {
       return (va > vb ? 1 : va < vb ? -1 : 0) * dir;
     });
     $('#mkt-count').textContent = view.length + ' stocks';
+
+    if (mktView === 'heat') return drawHeatmap(view);
 
     // phone: compact rows — symbol, LTP, day change (the columns that matter)
     if (window.matchMedia('(max-width: 680px)').matches) {
@@ -522,8 +638,11 @@ async function renderCommodities() {
       <div class="card-body">
         <div style="display:flex; gap:28px; flex-wrap:wrap; align-items:flex-end; margin-bottom:14px">
           <div>
-            <div class="muted" style="font-size:.68rem; font-weight:700; letter-spacing:.6px">APPROX MCX (incl. ~6% duty)</div>
+            <div class="muted" style="font-size:.68rem; font-weight:700; letter-spacing:.6px">
+              ${m.live ? `MCX ${esc(m.contract)} <span class="up">● LIVE</span>` : 'APPROX MCX (incl. ~6% duty)'}
+            </div>
             <div class="num" style="font-size:2rem; font-weight:800">₹${inr(m.inrMcxApprox, 0)}</div>
+            ${m.live && m.mcxDayLow ? `<div class="muted num" style="font-size:.7rem">day ₹${inr(m.mcxDayLow, 0)} – ₹${inr(m.mcxDayHigh, 0)} · exp ${esc(m.expiry)}</div>` : ''}
           </div>
           <div>
             <div class="muted" style="font-size:.68rem; font-weight:700; letter-spacing:.6px">INTL PRICE IN ₹</div>
@@ -604,6 +723,7 @@ async function renderStock(params) {
         <div class="sh-meta" id="sh-meta"></div>
       </div>
       <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap">
+        <button class="btn" id="watch-btn" title="Add to watchlist">☆</button>
         <button class="btn" id="add-pf-btn">+ Add to Portfolio</button>
         <button class="research-cta" id="research-btn">
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/><path d="M8 11h6M11 8v6"/></svg>
@@ -627,8 +747,53 @@ async function renderStock(params) {
     </div>
 
     <div id="research-area" style="margin-top:18px"></div>
-    <div class="card" style="margin-top:18px" id="about-card"><div class="card-head"><span class="card-title">About the Company</span></div><div class="card-body" id="about-body"><div class="spinner"></div></div></div>
+    <div class="grid" style="grid-template-columns: 1.3fr 1fr; margin-top:18px; align-items:start">
+      <div class="card" id="news-card"><div class="card-head"><span class="card-title">Latest News</span><span class="muted" style="font-size:.7rem">Google News · tone is a keyword heuristic</span></div><div id="news-body"><div class="spinner"></div></div></div>
+      <div class="card" id="about-card"><div class="card-head"><span class="card-title">About the Company</span></div><div class="card-body" id="about-body"><div class="spinner"></div></div></div>
+    </div>
   `;
+
+  // watchlist star
+  (async () => {
+    try {
+      const wl = await api('/api/watchlist');
+      const on = wl.some((w) => w.symbol === symbol);
+      $('#watch-btn').textContent = on ? '★' : '☆';
+      $('#watch-btn').style.color = on ? '#f5a623' : '';
+    } catch {}
+  })();
+  $('#watch-btn').onclick = async () => {
+    try {
+      const r = await api('/api/watchlist/' + encodeURIComponent(symbol), { method: 'POST' });
+      $('#watch-btn').textContent = r.watching ? '★' : '☆';
+      $('#watch-btn').style.color = r.watching ? '#f5a623' : '';
+      toast(r.watching ? 'Added to watchlist ⭐' : 'Removed from watchlist', 'ok');
+    } catch (e) { toast(e.message, 'err'); }
+  };
+
+  // news
+  function ago(ts) {
+    if (!ts) return '';
+    const m = Math.round((Date.now() - ts) / 60000);
+    if (m < 60) return m + 'm ago';
+    if (m < 1440) return Math.round(m / 60) + 'h ago';
+    return Math.round(m / 1440) + 'd ago';
+  }
+  async function loadNews(name) {
+    try {
+      const items = await api(`/api/news/${encodeURIComponent(symbol)}?q=${encodeURIComponent(name || '')}`);
+      $('#news-body').innerHTML = items.length
+        ? items.map((n) => `<a class="news-row" href="${esc(n.link || '#')}" target="_blank" rel="noopener">
+            <div class="nr-title">${esc(n.title)}</div>
+            <div class="nr-meta">
+              <span class="tone-chip ${n.tone}">${n.tone}</span>
+              <span>${esc(n.source || '')}</span><span>·</span><span>${ago(n.publishedAt)}</span>
+            </div></a>`).join('')
+        : '<div class="empty">No recent news found.</div>';
+    } catch (e) {
+      $('#news-body').innerHTML = `<div class="empty">News unavailable: ${esc(e.message)}</div>`;
+    }
+  }
 
   // ----- quote header -----
   let lastPrice = null;
@@ -881,6 +1046,55 @@ async function renderStock(params) {
     </div>`;
   }
 
+  function ownershipSection(r) {
+    const sh = r.statements?.shareholding;
+    if (!sh?.latest) return '';
+    const seg = [
+      ['Promoters', sh.latest.promoters, '#0f2a5c'],
+      ['FIIs', sh.latest.fiis, '#2563eb'],
+      ['DIIs', sh.latest.diis, '#089c6c'],
+      ['Govt', sh.latest.government, '#8b5cf6'],
+      ['Public', sh.latest.public, '#f59e0b'],
+    ].filter(([, v]) => v != null && v > 0);
+    if (!seg.length) return '';
+    const trend = (v) =>
+      v == null || Math.abs(v) < 0.05 ? '' : `<i class="num ${cls(v)}" style="font-size:.68rem"> ${v > 0 ? '▲' : '▼'}${Math.abs(v).toFixed(1)}%</i>`;
+    return `<div style="margin-top:18px">
+      <div class="card-title" style="margin-bottom:10px">Ownership · ${esc(sh.latest.period)}</div>
+      <div style="display:flex; height:14px; border-radius:7px; overflow:hidden; gap:2px; margin-bottom:10px">
+        ${seg.map(([, v, c]) => `<div style="flex:${v}; background:${c}"></div>`).join('')}
+      </div>
+      <div style="display:flex; gap:18px; flex-wrap:wrap; font-size:.8rem">
+        ${seg.map(([nm, v, c], i) => `<span><span class="lg-dot" style="background:${c}; display:inline-block; margin-right:5px"></span>${nm} <b class="num">${v.toFixed(1)}%</b>${i === 0 ? trend(sh.promoterTrend) : i === 1 ? trend(sh.fiiTrend) : ''}</span>`).join('')}
+      </div>
+    </div>`;
+  }
+
+  async function loadPeers() {
+    const area = $('#peers-area');
+    if (!area) return;
+    try {
+      const p = await api('/api/peers/' + encodeURIComponent(symbol));
+      if (!p.rows || p.rows.length < 2) { area.innerHTML = ''; return; }
+      area.innerHTML = `
+        <div class="card-title" style="margin-bottom:10px">Peer Comparison · ${esc(p.sector)}</div>
+        <div style="overflow-x:auto"><table class="data">
+          <thead><tr><th>Company</th><th>LTP ₹</th><th>Day %</th><th>P/E</th><th>Mkt Cap</th><th>From 52W High</th></tr></thead>
+          <tbody>${p.rows.map((x) => `
+            <tr style="${x.self ? 'background:#eef4ff; font-weight:700' : ''}" onclick="location.hash='#/stock/${encodeURIComponent(x.symbol)}'">
+              <td><div class="stock-cell"><span class="s-sym">${esc(dispSym(x.symbol))}${x.self ? ' ◄' : ''}</span><span class="s-name">${esc(x.name)}</span></div></td>
+              <td class="num">${inr(x.price)}</td>
+              <td><span class="chg-pill ${cls(x.changePct)}">${pct(x.changePct)}</span></td>
+              <td class="num">${x.pe != null ? x.pe.toFixed(1) : '—'}</td>
+              <td class="num">${x.marketCap ? '₹' + inrShort(x.marketCap) : '—'}</td>
+              <td class="num ${cls(x.pctFromHigh)}">${pct(x.pctFromHigh)}</td>
+            </tr>`).join('')}</tbody>
+        </table></div>`;
+    } catch {
+      area.innerHTML = '';
+    }
+  }
+
   function renderResearch(r) {
     const scoreColor = r.scores.composite >= 58 ? '#089c6c' : r.scores.composite >= 44 ? '#b7791f' : '#d43a3a';
     const f = r.fundamentals;
@@ -946,11 +1160,16 @@ async function renderStock(params) {
             </div>
           </div>
 
+          ${ownershipSection(r)}
+
           ${financialsSection(r)}
+
+          <div id="peers-area" style="margin-top:18px"><div class="spinner"></div></div>
 
           <div class="disclaimer">⚠ ${esc(r.disclaimer)}</div>
         </div>
       </div>`;
+    loadPeers();
   }
 
   // ----- add to portfolio -----
@@ -984,6 +1203,7 @@ async function renderStock(params) {
   };
 
   await loadQuote();
+  loadNews(($('#sh-name')?.textContent || '').replace(/NSE|BSE|LIVE/g, '').trim() || dispSym(symbol));
   setPoll(loadQuote, 5000);
 }
 

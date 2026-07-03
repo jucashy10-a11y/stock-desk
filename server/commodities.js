@@ -9,6 +9,7 @@
  */
 
 const yahoo = require('./yahoo');
+const kite = require('./kite');
 const research = require('./research');
 
 const OZ_TO_G = 31.1034768;
@@ -63,16 +64,37 @@ async function build() {
   const usdinr = quoteMap['USDINR=X']?.price;
   if (!usdinr) throw new Error('USDINR rate unavailable');
 
-  const mk = (r, q, unitGrams, unitLabel) => {
+  // REAL MCX prices (Gold Mini ₹/10g, Silver Mini ₹/kg) when Kite is connected;
+  // COMEX×USDINR approximation only as fallback.
+  let mcx = null;
+  if (kite.status().connected) {
+    try {
+      mcx = await kite.mcxMiniQuotes();
+    } catch (e) {
+      console.warn('[mcx] live quotes unavailable, using COMEX conversion:', e.message);
+    }
+  }
+
+  const mk = (r, q, unitGrams, unitLabel, mcxQ) => {
     const factor = (usdinr / OZ_TO_G) * unitGrams; // $/oz -> ₹ per unit
-    const inr = (usd) => (usd != null ? usd * factor : null);
+    const intl = r.quote.price * factor;
+    // scale COMEX-based projections onto the actual MCX price level
+    const headline = mcxQ?.price ?? intl * MCX_FACTOR;
+    const scale = headline / intl;
+    const inr = (usd) => (usd != null ? usd * factor * scale : null);
     const t = r.technicals;
     return {
       usdPrice: r.quote.price,
-      usdChangePct: q?.changePct ?? r.quote.changePct ?? null,
+      usdChangePct: mcxQ?.changePct ?? q?.changePct ?? r.quote.changePct ?? null,
       unitLabel,
-      inrIntl: inr(r.quote.price),
-      inrMcxApprox: inr(r.quote.price) * MCX_FACTOR,
+      live: !!mcxQ,
+      contract: mcxQ?.contract ?? null,
+      expiry: mcxQ?.expiry ?? null,
+      mcxVolume: mcxQ?.volume ?? null,
+      mcxDayHigh: mcxQ?.dayHigh ?? null,
+      mcxDayLow: mcxQ?.dayLow ?? null,
+      inrIntl: intl,
+      inrMcxApprox: headline,
       dayHigh: inr(q?.dayHigh),
       dayLow: inr(q?.dayLow),
       yearHighInr: inr(t.yearHigh),
@@ -115,11 +137,13 @@ async function build() {
   return {
     usdinr,
     generatedAt: Date.now(),
-    gold: mk(goldR, quoteMap['GC=F'], 10, 'per 10g'),
-    silver: mk(silverR, quoteMap['SI=F'], 1000, 'per kg'),
+    mcxLive: !!mcx,
+    gold: mk(goldR, quoteMap['GC=F'], 10, 'per 10g', mcx?.gold),
+    silver: mk(silverR, quoteMap['SI=F'], 1000, 'per kg', mcx?.silver),
     mcxFactorPct: (MCX_FACTOR - 1) * 100,
-    disclaimer:
-      'INR prices are converted from COMEX futures at live USDINR. "Approx MCX" adds ~6% for import duty and local premium — actual MCX ticks differ. Projections and buy signals are technical estimates, not guaranteed outcomes or investment advice.',
+    disclaimer: mcx
+      ? 'Prices are live MCX Gold Mini / Silver Mini futures via Zerodha Kite. Projections and buy signals are technical estimates derived from long price history, not guaranteed outcomes or investment advice.'
+      : 'Kite is not connected, so INR prices are approximated from COMEX futures at live USDINR (+~6% duty). Connect Kite in Settings for real MCX Gold Mini / Silver Mini prices. Projections are technical estimates, not investment advice.',
   };
 }
 

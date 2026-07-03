@@ -8,6 +8,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const gistsync = require('./gistsync');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const KITE_FILE = path.join(DATA_DIR, 'kite.json');
@@ -27,6 +28,25 @@ function load() {
 function save(cfg) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
   fs.writeFileSync(KITE_FILE, JSON.stringify(cfg, null, 2));
+  // keep today's access token alive across ephemeral-host restarts
+  gistsync.backupSoon('kite.json', () => JSON.stringify(cfg, null, 2));
+}
+
+/** Restore today's Kite session from the gist after a fresh boot. */
+async function cloudRestore() {
+  try {
+    const content = await gistsync.restore('kite.json');
+    if (!content) return;
+    const remote = JSON.parse(content);
+    const local = load();
+    // only adopt the remote token when it's from today and we don't have one
+    if (remote?.accessToken && remote.tokenDate === todayIST() && local.tokenDate !== todayIST()) {
+      save({ ...local, ...remote, apiKey: local.apiKey || remote.apiKey, apiSecret: local.apiSecret || remote.apiSecret });
+      console.log('[gist] restored today\'s Kite session');
+    }
+  } catch (e) {
+    console.warn('[gist] kite restore failed:', e.message);
+  }
 }
 
 function todayIST() {
@@ -245,4 +265,66 @@ async function history(symbol, range) {
   return { symbol, range, interval: spec.interval, candles, source: 'kite' };
 }
 
-module.exports = { status, setCredentials, disconnect, createSession, quotes, history };
+// ---------- MCX commodity futures (Gold Mini / Silver Mini) ----------
+
+let mcxCache = { date: '', list: null };
+
+/** Nearest-expiry GOLDM and SILVERM futures from the MCX instruments dump. */
+async function loadMcxMinis() {
+  const today = todayIST();
+  if (mcxCache.list && mcxCache.date === today) return mcxCache.list;
+  const cfg = load();
+  if (!cfg.apiKey || !cfg.accessToken) throw new Error('Kite not connected');
+  const res = await fetch('https://api.kite.trade/instruments/MCX', {
+    headers: { 'X-Kite-Version': '3', Authorization: `token ${cfg.apiKey}:${cfg.accessToken}` },
+  });
+  if (!res.ok) throw new Error(`MCX instruments dump failed (${res.status})`);
+  const lines = (await res.text()).split('\n');
+  const header = lines[0].split(',');
+  const iSym = header.indexOf('tradingsymbol');
+  const iName = header.indexOf('name');
+  const iExp = header.indexOf('expiry');
+  const iType = header.indexOf('instrument_type');
+  const found = { GOLDM: [], SILVERM: [] };
+  for (let i = 1; i < lines.length; i++) {
+    const c = lines[i].split(',');
+    if (c[iType] !== 'FUT') continue;
+    const nm = (c[iName] || '').replace(/"/g, '').trim();
+    if (nm !== 'GOLDM' && nm !== 'SILVERM') continue;
+    if (!c[iExp] || c[iExp] <= today) continue; // skip expired and expiring-today (roll to next)
+    found[nm].push({ tradingsymbol: c[iSym], expiry: c[iExp] });
+  }
+  for (const k of Object.keys(found)) found[k].sort((a, b) => (a.expiry < b.expiry ? -1 : 1));
+  mcxCache = { date: today, list: found };
+  return found;
+}
+
+/** Live MCX Gold Mini (₹/10g) and Silver Mini (₹/kg) quotes from the nearest contract. */
+async function mcxMiniQuotes() {
+  const minis = await loadMcxMinis();
+  const gold = minis.GOLDM[0];
+  const silver = minis.SILVERM[0];
+  if (!gold || !silver) throw new Error('MCX mini contracts not found');
+  const qs = [gold, silver].map((x) => 'i=' + encodeURIComponent('MCX:' + x.tradingsymbol)).join('&');
+  const data = await kiteGet('/quote?' + qs);
+  const mk = (contract) => {
+    const q = data['MCX:' + contract.tradingsymbol];
+    if (!q?.last_price) return null;
+    const prev = q.ohlc?.close ?? q.last_price;
+    return {
+      contract: contract.tradingsymbol,
+      expiry: contract.expiry,
+      price: q.last_price,
+      prevClose: prev,
+      changePct: prev ? ((q.last_price - prev) / prev) * 100 : 0,
+      dayHigh: q.ohlc?.high ?? null,
+      dayLow: q.ohlc?.low ?? null,
+      volume: q.volume ?? null,
+      oi: q.oi ?? null,
+      time: q.last_trade_time ? new Date(q.last_trade_time).getTime() : Date.now(),
+    };
+  };
+  return { gold: mk(gold), silver: mk(silver), source: 'mcx' };
+}
+
+module.exports = { status, setCredentials, disconnect, createSession, cloudRestore, quotes, history, mcxMiniQuotes };
