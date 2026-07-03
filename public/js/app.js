@@ -206,6 +206,7 @@ const routes = {
   dashboard: renderDashboard,
   markets: renderMarkets,
   ideas: renderIdeas,
+  gold: renderCommodities,
   stock: renderStock,
   portfolio: renderPortfolio,
   settings: renderSettings,
@@ -492,6 +493,96 @@ async function renderIdeas() {
     }
   }
   loadIdeas();
+}
+
+// ================= GOLD & SILVER =================
+
+async function renderCommodities() {
+  app.innerHTML = `
+    <div class="page-title">Gold &amp; Silver Desk</div>
+    <div class="page-sub" id="cmd-sub">Live international prices in ₹, projections and an honest “when to buy” read</div>
+    <div id="cmd-body"><div class="spinner"></div></div>`;
+
+  function metalCard(m, title, emoji, chartSymbol) {
+    const sig = m.signal;
+    const sigClass = sig.color === 'green' ? 'up' : sig.color === 'red' ? 'down' : '';
+    const t = m.technicals;
+    const proj = (p, label) => `
+      <div class="proj-card">
+        <h4>${label} · ${p.horizon}</h4>
+        <div class="proj-target ${cls(p.expectedPct)}">₹${inr(p.expected, 0)} <span style="font-size:.8rem">(${pct(p.expectedPct)})</span></div>
+        <div class="proj-range-bar"><div class="proj-marker" style="left:calc(${Math.max(2, Math.min(98, p.bull > p.bear ? ((p.expected - p.bear) / (p.bull - p.bear)) * 100 : 50))}% - 2px)"></div></div>
+        <div class="proj-ends"><span>Bear ₹${inr(p.bear, 0)} (${pct(p.bearPct)})</span><span>Bull ₹${inr(p.bull, 0)} (${pct(p.bullPct)})</span></div>
+      </div>`;
+    return `<div class="card" style="margin-bottom:18px">
+      <div class="card-head">
+        <span class="card-title">${emoji} ${title} <span class="muted" style="font-weight:600; text-transform:none">· ${esc(m.unitLabel)}</span></span>
+        <span class="chg-pill ${cls(m.usdChangePct)}">${pct(m.usdChangePct)} today</span>
+      </div>
+      <div class="card-body">
+        <div style="display:flex; gap:28px; flex-wrap:wrap; align-items:flex-end; margin-bottom:14px">
+          <div>
+            <div class="muted" style="font-size:.68rem; font-weight:700; letter-spacing:.6px">APPROX MCX (incl. ~6% duty)</div>
+            <div class="num" style="font-size:2rem; font-weight:800">₹${inr(m.inrMcxApprox, 0)}</div>
+          </div>
+          <div>
+            <div class="muted" style="font-size:.68rem; font-weight:700; letter-spacing:.6px">INTL PRICE IN ₹</div>
+            <div class="num" style="font-size:1.2rem; font-weight:700">₹${inr(m.inrIntl, 0)}</div>
+          </div>
+          <div>
+            <div class="muted" style="font-size:.68rem; font-weight:700; letter-spacing:.6px">COMEX</div>
+            <div class="num" style="font-size:1.2rem; font-weight:700">$${inr(m.usdPrice)}</div>
+          </div>
+          <div>
+            <div class="muted" style="font-size:.68rem; font-weight:700; letter-spacing:.6px">TECH SCORE</div>
+            <div class="num" style="font-size:1.2rem; font-weight:800">${m.score}/100</div>
+          </div>
+        </div>
+
+        <div class="cmd-signal ${sigClass}">
+          <div class="cs-action">${esc(sig.action)}</div>
+          <div class="cs-text">${esc(sig.text)}</div>
+        </div>
+
+        <div class="grid" style="grid-template-columns:1fr 1fr; margin:16px 0">
+          ${proj(m.shortTerm, 'Short-term')}
+          ${proj(m.longTerm, 'Long-term')}
+        </div>
+
+        <div class="stat-grid" style="margin-bottom:14px">
+          ${[
+            ['RSI (14)', fx(t.rsi14, 0)],
+            ['Vs 200-day trend', t.aboveSma200 == null ? '—' : t.aboveSma200 ? '<span class="up">ABOVE ▲</span>' : '<span class="down">BELOW ▼</span>'],
+            ['200-DMA (₹)', t.sma200Inr ? '₹' + inr(t.sma200Inr, 0) : '—'],
+            ['From 52W high', pct(t.pctFromHigh)],
+            ['1M return', pct(t.ret1m)],
+            ['6M return', pct(t.ret6m)],
+            ['1Y return', pct(t.ret1y)],
+            ['52W range (₹)', m.yearLowInr ? `₹${inr(m.yearLowInr, 0)} – ₹${inr(m.yearHighInr, 0)}` : '—'],
+          ].map(([k, v]) => `<div class="stat"><div class="k">${k}</div><div class="v" style="font-size:.85rem">${v}</div></div>`).join('')}
+        </div>
+
+        <div style="display:flex; gap:10px; flex-wrap:wrap">
+          <button class="btn sm" onclick="location.hash='#/stock/${chartSymbol}'">📈 Full chart &amp; research</button>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  async function load() {
+    try {
+      const d = await api('/api/commodities');
+      $('#cmd-sub').innerHTML = `USDINR <b class="num">₹${inr(d.usdinr)}</b> · updated ${new Date(d.generatedAt).toLocaleTimeString('en-IN')} · refreshes every minute`;
+      $('#cmd-body').innerHTML = `
+        ${metalCard(d.gold, 'GOLD', '🟡', 'GC%3DF')}
+        ${metalCard(d.silver, 'SILVER', '⚪', 'SI%3DF')}
+        <div class="disclaimer">⚠ ${esc(d.disclaimer)}</div>`;
+    } catch (e) {
+      $('#cmd-body').innerHTML = `<div class="card"><div class="empty">Failed to load: ${esc(e.message)}</div></div>`;
+    }
+  }
+  await load();
+  setPoll(load, 60000);
 }
 
 // ================= STOCK PAGE =================

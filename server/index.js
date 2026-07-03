@@ -11,6 +11,7 @@ const screener = require('./screener');
 const kite = require('./kite');
 const research = require('./research');
 const ideas = require('./ideas');
+const commodities = require('./commodities');
 const portfolio = require('./portfolio');
 const { INDICES, UNIVERSE } = require('./symbols');
 
@@ -203,6 +204,11 @@ app.get('/api/fundamentals/:symbol', wrap(async (req, res) => {
 
 app.get('/api/research/:symbol', wrap(async (req, res) => {
   res.json(await research.research(req.params.symbol));
+}));
+
+/** Gold & Silver desk: live INR prices, projections and accumulation signal. */
+app.get('/api/commodities', wrap(async (req, res) => {
+  res.json(await commodities.get());
 }));
 
 /** Idea scanner: returns picks when ready, or build progress while scanning. */

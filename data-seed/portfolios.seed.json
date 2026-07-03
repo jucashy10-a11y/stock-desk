@@ -1,0 +1,3562 @@
+{
+  "portfolios": [
+    {
+      "id": "pf1783059845308",
+      "name": "Raja",
+      "transactions": [
+        {
+          "id": "tx1783059845311_zf8lb",
+          "symbol": "ADANIPOWER.NS",
+          "name": "Adani Power Limited",
+          "type": "BUY",
+          "qty": 100,
+          "price": 200.21,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845311_1v0v5",
+          "symbol": "ALMONDZ.NS",
+          "name": "Almondz Global Securities Limited",
+          "type": "BUY",
+          "qty": 1000,
+          "price": 20.07,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845311_z64dq",
+          "symbol": "AVANTEL.NS",
+          "name": "Avantel Limited",
+          "type": "BUY",
+          "qty": 1,
+          "price": 171.83,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845311_5s7ai",
+          "symbol": "BALUFORGE.NS",
+          "name": "Balu Forge Industries Limited",
+          "type": "BUY",
+          "qty": 1,
+          "price": 551.15,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845311_k8oo0",
+          "symbol": "BEEKAY.NS",
+          "name": "Beekay Steel Industries Limited",
+          "type": "BUY",
+          "qty": 30,
+          "price": 459.14,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845311_ll1ta",
+          "symbol": "BESTAGRO.NS",
+          "name": "Best Agrolife Limited",
+          "type": "BUY",
+          "qty": 300,
+          "price": 445.05,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845311_ot7ur",
+          "symbol": "BEL.NS",
+          "name": "Bharat Electronics Limited",
+          "type": "BUY",
+          "qty": 40,
+          "price": 421.28,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845311_7ce3o",
+          "symbol": "BHARATFORG.NS",
+          "name": "Bharat Forge Limited",
+          "type": "BUY",
+          "qty": 5,
+          "price": 1738.75,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845311_ieza3",
+          "symbol": "BHARATRAS.NS",
+          "name": "Bharat Rasayan Limited",
+          "type": "BUY",
+          "qty": 16,
+          "price": 3319.68,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845311_eayao",
+          "symbol": "BHEL.NS",
+          "name": "Bharat Heavy Electricals Limited",
+          "type": "BUY",
+          "qty": 30,
+          "price": 413.9,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845311_ky0rg",
+          "symbol": "GROWW.NS",
+          "name": "BILLIONBRAINS GARAGE VN L",
+          "type": "BUY",
+          "qty": 40,
+          "price": 198.52,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845311_agjny",
+          "symbol": "CDSL.NS",
+          "name": "Central Depository Services (India) Limited",
+          "type": "BUY",
+          "qty": 4,
+          "price": 1171.33,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845311_lf214",
+          "symbol": "CELLO.NS",
+          "name": "Cello World Limited",
+          "type": "BUY",
+          "qty": 35,
+          "price": 549.68,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845311_s2xpj",
+          "symbol": "CEREBRAINT.NS",
+          "name": "Cerebra Integrated Technologies Limited",
+          "type": "BUY",
+          "qty": 36343,
+          "price": 8.05,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845311_bae3g",
+          "symbol": "DELTACORP.NS",
+          "name": "Delta Corp Limited",
+          "type": "BUY",
+          "qty": 20,
+          "price": 69.98,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845311_7flyi",
+          "symbol": "DIXON.NS",
+          "name": "Dixon Technologies (India) Limited",
+          "type": "BUY",
+          "qty": 2,
+          "price": 10438.58,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845311_nxxta",
+          "symbol": "E2E.NS",
+          "name": "E2E Networks Limited",
+          "type": "BUY",
+          "qty": 10,
+          "price": 41.4,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845311_v872i",
+          "symbol": "EPACK.NS",
+          "name": "EPACK Durable Limited",
+          "type": "BUY",
+          "qty": 55,
+          "price": 360.21,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_e8vew",
+          "symbol": "GODFRYPHLP.NS",
+          "name": "Godfrey Phillips India Limited",
+          "type": "BUY",
+          "qty": 25,
+          "price": 2276.42,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_v31a7",
+          "symbol": "GODREJPROP.NS",
+          "name": "Godrej Properties Limited",
+          "type": "BUY",
+          "qty": 23,
+          "price": 1834.84,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_bcvcn",
+          "symbol": "GUJGASLTD.NS",
+          "name": "Gujarat Energy Limited",
+          "type": "BUY",
+          "qty": 50,
+          "price": 323.74,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_ed1cy",
+          "symbol": "HDFCBANK.NS",
+          "name": "HDFC Bank Limited",
+          "type": "BUY",
+          "qty": 5,
+          "price": 802.83,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_zgh4m",
+          "symbol": "HEIDELBERG.NS",
+          "name": "Heidelberg Cement India",
+          "type": "BUY",
+          "qty": 550,
+          "price": 150.65,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_i6thd",
+          "symbol": "HINDZINC.NS",
+          "name": "Hindustan Zinc Limited",
+          "type": "BUY",
+          "qty": 5,
+          "price": 431.26,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_or4lc",
+          "symbol": "HAL.NS",
+          "name": "Hindustan Aeronautics Limited",
+          "type": "BUY",
+          "qty": 4,
+          "price": 3780.13,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_jg5o6",
+          "symbol": "POWERINDIA.NS",
+          "name": "Hitachi Energy India Limited",
+          "type": "BUY",
+          "qty": 1,
+          "price": 34321.32,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_8sio2",
+          "symbol": "HLVLTD.NS",
+          "name": "HLV Limited",
+          "type": "BUY",
+          "qty": 1500,
+          "price": 16.27,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_j4qq7",
+          "symbol": "ICICIBANK.NS",
+          "name": "ICICI Bank Limited",
+          "type": "BUY",
+          "qty": 21,
+          "price": 1396.47,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_ild99",
+          "symbol": "IDBI.NS",
+          "name": "IDBI Bank Limited",
+          "type": "BUY",
+          "qty": 50,
+          "price": 89.71,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_5fmiz",
+          "symbol": "INDHOTEL.NS",
+          "name": "The Indian Hotels Company Limited",
+          "type": "BUY",
+          "qty": 430,
+          "price": 720.65,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_afble",
+          "symbol": "INDRAMEDCO.NS",
+          "name": "Indraprastha Medical Corporation Limited",
+          "type": "BUY",
+          "qty": 205,
+          "price": 477.69,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_qn85o",
+          "symbol": "IOB.BO",
+          "name": "Indian Overseas Bank",
+          "type": "BUY",
+          "qty": 300,
+          "price": 35.79,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_gaqw6",
+          "symbol": "ITCHOTELS.NS",
+          "name": "ITC HOTELS LIMITED",
+          "type": "BUY",
+          "qty": 115,
+          "price": 333.89,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_e4uy5",
+          "symbol": "JPPOWER.NS",
+          "name": "Jaiprakash Power Ventures Limited",
+          "type": "BUY",
+          "qty": 1700,
+          "price": 19.12,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_euvax",
+          "symbol": "COCKERILL.NS",
+          "name": "John Cockerill India Limited",
+          "type": "BUY",
+          "qty": 7,
+          "price": 9497.86,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_u9yhe",
+          "symbol": "JSWHL.NS",
+          "name": "JSW Holdings Limited",
+          "type": "BUY",
+          "qty": 3,
+          "price": 12441.98,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_9xnys",
+          "symbol": "JYOTISTRUC.NS",
+          "name": "Jyoti Structures Limited",
+          "type": "BUY",
+          "qty": 6000,
+          "price": 15.7,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_3f7ut",
+          "symbol": "RUSTOMJEE.NS",
+          "name": "Keystone Realtors Limited",
+          "type": "BUY",
+          "qty": 20,
+          "price": 612.22,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_6text",
+          "symbol": "KRETTOSYS.BO",
+          "name": "Kretto Syscon Limited",
+          "type": "BUY",
+          "qty": 10800,
+          "price": 1.24,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_u6uzw",
+          "symbol": "LANCER.BO",
+          "name": "Lancer Container Lines Limited",
+          "type": "BUY",
+          "qty": 200,
+          "price": 16.95,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_10h8a",
+          "symbol": "LICI.NS",
+          "name": "Life Insurance Corporation",
+          "type": "BUY",
+          "qty": 10,
+          "price": 415.13,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_lc0fh",
+          "symbol": "LINC.NS",
+          "name": "Linc Limited",
+          "type": "BUY",
+          "qty": 150,
+          "price": 149.6,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_mkwgh",
+          "symbol": "LLOYDSENGG.NS",
+          "name": "Lloyds Engineering Works Limited",
+          "type": "BUY",
+          "qty": 310,
+          "price": 71.7,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_au2i2",
+          "symbol": "MASPTOP50.NS",
+          "name": "Mirae Asset S&P 500 Top 50 ETF",
+          "type": "BUY",
+          "qty": 200,
+          "price": 74.47,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_c9brg",
+          "symbol": "MMTC.NS",
+          "name": "MMTC Limited",
+          "type": "BUY",
+          "qty": 50,
+          "price": 78.63,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_zvdom",
+          "symbol": "MODEFENCE.NS",
+          "name": "Motilal Oswal Nifty India Defence ETF",
+          "type": "BUY",
+          "qty": 50,
+          "price": 98.1,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_glsnl",
+          "symbol": "MTARTECH.NS",
+          "name": "MTAR Technologies Limited",
+          "type": "BUY",
+          "qty": 7,
+          "price": 5853.97,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_2b3os",
+          "symbol": "NATIONALUM.NS",
+          "name": "National Aluminium",
+          "type": "BUY",
+          "qty": 10,
+          "price": 189.58,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_g6c2m",
+          "symbol": "NILKAMAL.NS",
+          "name": "Nilkamal Limited",
+          "type": "BUY",
+          "qty": 6,
+          "price": 1722.78,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_you1z",
+          "symbol": "NIF100BEES.NS",
+          "name": "Nippon India ETF Nifty 100",
+          "type": "BUY",
+          "qty": 45,
+          "price": 273.74,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_5iups",
+          "symbol": "NLCINDIA.NS",
+          "name": "NLC India Limited",
+          "type": "BUY",
+          "qty": 50,
+          "price": 310.1,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_3ch9v",
+          "symbol": "PAISALO.NS",
+          "name": "Paisalo Digital Limited",
+          "type": "BUY",
+          "qty": 28900,
+          "price": 50.78,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_0zr9w",
+          "symbol": "PANCM.BO",
+          "name": "Panyam Cements and Mineral Industries Limited",
+          "type": "BUY",
+          "qty": 494,
+          "price": 126.62,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_qt2h7",
+          "symbol": "PATELENG.NS",
+          "name": "Patel Engineering Limited",
+          "type": "BUY",
+          "qty": 500,
+          "price": 42.1,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_rzi06",
+          "symbol": "PGEL.NS",
+          "name": "PG Electroplast Limited",
+          "type": "BUY",
+          "qty": 5,
+          "price": 557.31,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_ml0jd",
+          "symbol": "PLASTIBLEN.NS",
+          "name": "Plastiblends India Limited",
+          "type": "BUY",
+          "qty": 20,
+          "price": 190.85,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_v1drg",
+          "symbol": "PNB.NS",
+          "name": "Punjab National Bank",
+          "type": "BUY",
+          "qty": 100,
+          "price": 110.93,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_tckcj",
+          "symbol": "PROTEAN.NS",
+          "name": "Protean eGov Technologies Limited",
+          "type": "BUY",
+          "qty": 6,
+          "price": 1400.79,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_y1qxp",
+          "symbol": "PSB.NS",
+          "name": "Punjab & Sind Bank",
+          "type": "BUY",
+          "qty": 300,
+          "price": 32.14,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_cp63c",
+          "symbol": "RAMASTEEL.NS",
+          "name": "Rama Steel Tubes Limited",
+          "type": "BUY",
+          "qty": 700,
+          "price": 10.27,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_9fnr9",
+          "symbol": "RASIELEC.BO",
+          "name": "Rasi Electrodes Limited",
+          "type": "BUY",
+          "qty": 200,
+          "price": 18.25,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_ewnyj",
+          "symbol": "RAYMONDREL.NS",
+          "name": "Raymond Realty Limited",
+          "type": "BUY",
+          "qty": 5,
+          "price": 676.09,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_yamro",
+          "symbol": "RECLTD.NS",
+          "name": "REC Limited",
+          "type": "BUY",
+          "qty": 85,
+          "price": 353.89,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_e7myh",
+          "symbol": "RELINFRA.NS",
+          "name": "Reliance Infrastructure Limited",
+          "type": "BUY",
+          "qty": 100,
+          "price": 290.68,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_68scr",
+          "symbol": "RPOWER.NS",
+          "name": "Reliance Power Limited",
+          "type": "BUY",
+          "qty": 100,
+          "price": 45.24,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_xf02n",
+          "symbol": "SAMMAANCAP.NS",
+          "name": "Sammaan Capital Limited",
+          "type": "BUY",
+          "qty": 200,
+          "price": 185,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_0oe5l",
+          "symbol": "SEPC.NS",
+          "name": "SEPC Limited",
+          "type": "BUY",
+          "qty": 300,
+          "price": 14.64,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_f63dc",
+          "symbol": "SHRIRAMFIN.NS",
+          "name": "Shriram Finance Limited",
+          "type": "BUY",
+          "qty": 20,
+          "price": 606.88,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_3tc18",
+          "symbol": "SIEMENS.NS",
+          "name": "Siemens",
+          "type": "BUY",
+          "qty": 3,
+          "price": 4800.69,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_h928f",
+          "symbol": "ENRIN.NS",
+          "name": "Siemens Energy India Limited",
+          "type": "BUY",
+          "qty": 2,
+          "price": 7371.6,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_6ydp9",
+          "symbol": "SIYARAM.BO",
+          "name": "Siyaram Recycling Industries Limited",
+          "type": "BUY",
+          "qty": 3000,
+          "price": 35.48,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_9st5x",
+          "symbol": "SIYSIL.NS",
+          "name": "Siyaram Silk Mills Limited",
+          "type": "BUY",
+          "qty": 283,
+          "price": 924.81,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_r1psg",
+          "symbol": "STLTECH.NS",
+          "name": "Sterlite Technologies Limited",
+          "type": "BUY",
+          "qty": 3,
+          "price": 562.08,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_9udu6",
+          "symbol": "SUBEXLTD.NS",
+          "name": "Subex Limited",
+          "type": "BUY",
+          "qty": 500,
+          "price": 12.78,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_qlu8c",
+          "symbol": "SUNFLAG.NS",
+          "name": "Sunflag Iron and Steel Company Limited",
+          "type": "BUY",
+          "qty": 10,
+          "price": 358.37,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_r1rom",
+          "symbol": "TAJGVK.NS",
+          "name": "TAJGVK Hotels & Resorts Limited",
+          "type": "BUY",
+          "qty": 75,
+          "price": 328.22,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_3wtii",
+          "symbol": "TATAELXSI.NS",
+          "name": "Tata Elxsi Limited",
+          "type": "BUY",
+          "qty": 5,
+          "price": 5636.28,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845451_0hd5r",
+          "symbol": "TATAINVEST.NS",
+          "name": "Tata Investment Corporation Limited",
+          "type": "BUY",
+          "qty": 15,
+          "price": 812.43,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845452_kqr09",
+          "symbol": "TMCV.NS",
+          "name": "Tata Motors (Commercial Vehicles)",
+          "type": "BUY",
+          "qty": 20,
+          "price": 1,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845452_fujqy",
+          "symbol": "TATAPOWER.NS",
+          "name": "The Tata Power Company Limited",
+          "type": "BUY",
+          "qty": 720,
+          "price": 388.95,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845452_mthxg",
+          "symbol": "TATSILV.NS",
+          "name": "Tata Mutual Fund - Tata Silver ETF Fund of Fund",
+          "type": "BUY",
+          "qty": 1000,
+          "price": 22.83,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845452_hviik",
+          "symbol": "TATATECH.NS",
+          "name": "TATA TECHNOLOGIES LIMITED",
+          "type": "BUY",
+          "qty": 10,
+          "price": 661.29,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845452_svhpv",
+          "symbol": "TEXRAIL.NS",
+          "name": "Texmaco Rail & Engineering Limited",
+          "type": "BUY",
+          "qty": 200,
+          "price": 149.35,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845452_1vw6l",
+          "symbol": "THOMASCOTT.NS",
+          "name": "Thomas Scott (India) Limited",
+          "type": "BUY",
+          "qty": 20,
+          "price": 402.09,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845452_5hgf7",
+          "symbol": "TITAGARH.NS",
+          "name": "Titagarh Rail Systems Limited",
+          "type": "BUY",
+          "qty": 5,
+          "price": 947.23,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845452_lsj7w",
+          "symbol": "TMPV.NS",
+          "name": "Tata Motors Passenger Vehicles Limited",
+          "type": "BUY",
+          "qty": 20,
+          "price": 691.38,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845452_pczyk",
+          "symbol": "TFCILTD.NS",
+          "name": "Tourism Finance Corporation of India Limited",
+          "type": "BUY",
+          "qty": 50,
+          "price": 289.01,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845452_iuucm",
+          "symbol": "TRUALT.NS",
+          "name": "TRUALT BIOENERGY LIMITED",
+          "type": "BUY",
+          "qty": 160,
+          "price": 494.4,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845452_osj55",
+          "symbol": "TVSHLTD.NS",
+          "name": "TVS Holdings Limited",
+          "type": "BUY",
+          "qty": 1,
+          "price": 13557.92,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845452_91cxv",
+          "symbol": "UNITECH.NS",
+          "name": "Unitech Limited",
+          "type": "BUY",
+          "qty": 381500,
+          "price": 10.75,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845452_0dloo",
+          "symbol": "VISL.NS",
+          "name": "VEDANTA IRON AND STEEL L",
+          "type": "BUY",
+          "qty": 45,
+          "price": 262.58,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845452_d6dct",
+          "symbol": "VAML.NS",
+          "name": "Vedanta Aluminium Metal Limited",
+          "type": "BUY",
+          "qty": 35,
+          "price": 156.95,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845452_4utu9",
+          "symbol": "VISL.NS",
+          "name": "VEDANTA IRON AND STEEL L",
+          "type": "BUY",
+          "qty": 1125,
+          "price": 33.71,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845452_2zmrm",
+          "symbol": "VOGL.NS",
+          "name": "Vedanta Oil and Gas Limited",
+          "type": "BUY",
+          "qty": 25,
+          "price": 103.74,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845452_bon4q",
+          "symbol": "VEDPOWER.NS",
+          "name": "Vedanta Power Limited",
+          "type": "BUY",
+          "qty": 1425,
+          "price": 45.29,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845452_tk71h",
+          "symbol": "VEEDOL.NS",
+          "name": "Veedol Corporation Limited",
+          "type": "BUY",
+          "qty": 2,
+          "price": 1347.42,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845452_8zbhy",
+          "symbol": "VMS.BO",
+          "name": "VMS Industries Limited",
+          "type": "BUY",
+          "qty": 1000,
+          "price": 23.33,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845452_2e9lh",
+          "symbol": "IDEA.NS",
+          "name": "Vodafone Idea Limited",
+          "type": "BUY",
+          "qty": 11500,
+          "price": 8.07,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845452_087zu",
+          "symbol": "VSTIND.NS",
+          "name": "VST Industries",
+          "type": "BUY",
+          "qty": 20,
+          "price": 289.23,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845452_au8g3",
+          "symbol": "VSTTILLERS.NS",
+          "name": "V.S.T. Tillers Tractors Limited",
+          "type": "BUY",
+          "qty": 15,
+          "price": 4628.8,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845452_m8bae",
+          "symbol": "WAAREERTL.NS",
+          "name": "Waaree Renewable Technologies Limited",
+          "type": "BUY",
+          "qty": 1,
+          "price": 1240.28,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845452_g68t7",
+          "symbol": "WEBELSOLAR.NS",
+          "name": "Websol Energy System Limited",
+          "type": "BUY",
+          "qty": 100,
+          "price": 114.33,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845452_ig370",
+          "symbol": "WELSPLSOL.NS",
+          "name": "Welspun Specialty Solutions Limited",
+          "type": "BUY",
+          "qty": 174254,
+          "price": 42.64,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845452_rl025",
+          "symbol": "WENDT.NS",
+          "name": "Wendt (India) Limited",
+          "type": "BUY",
+          "qty": 7,
+          "price": 7197.87,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845452_98d0f",
+          "symbol": "YESBANK.NS",
+          "name": "Yes Bank Limited",
+          "type": "BUY",
+          "qty": 11800,
+          "price": 21.81,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845452_7ixyk",
+          "symbol": "ZEAL.BO",
+          "name": "Zeal Aqua Limited",
+          "type": "BUY",
+          "qty": 500,
+          "price": 11.82,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845452_21j6k",
+          "symbol": "ZENITHSTL.NS",
+          "name": "Zenith Steel Pipes & Industries Limited",
+          "type": "BUY",
+          "qty": 3000,
+          "price": 8.29,
+          "date": "2026-07-02",
+          "isin": null
+        }
+      ],
+      "createdAt": 1783059845308
+    },
+    {
+      "id": "pf1783059845455",
+      "name": "Deepika",
+      "transactions": [
+        {
+          "id": "tx1783059845457_lya5i",
+          "symbol": "3MINDIA.NS",
+          "name": "3M India Limited",
+          "type": "BUY",
+          "qty": 1,
+          "price": 31094.13,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_mwhft",
+          "symbol": "ADANIPOWER.NS",
+          "name": "Adani Power Limited",
+          "type": "BUY",
+          "qty": 150,
+          "price": 152.41,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_gtggg",
+          "symbol": "ALMONDZ.NS",
+          "name": "Almondz Global Securities Limited",
+          "type": "BUY",
+          "qty": 2105,
+          "price": 15.26,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_advr1",
+          "symbol": "BAJFINANCE.NS",
+          "name": "Bajaj Finance Limited",
+          "type": "BUY",
+          "qty": 20,
+          "price": 870,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_g5eib",
+          "symbol": "BAJAJHFL.NS",
+          "name": "BAJAJ HOUSING FINANCE LTD",
+          "type": "BUY",
+          "qty": 120,
+          "price": 118.53,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_dyz53",
+          "symbol": "BASML.NS",
+          "name": "Bannari Amman Spinning Mills Ltd",
+          "type": "BUY",
+          "qty": 650,
+          "price": 49.29,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_1r4ih",
+          "symbol": "BAYERCROP.NS",
+          "name": "Bayer CropScience Limited",
+          "type": "BUY",
+          "qty": 7,
+          "price": 6244.66,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_1wtso",
+          "symbol": "BEEKAY.NS",
+          "name": "Beekay Steel Industries Limited",
+          "type": "BUY",
+          "qty": 100,
+          "price": 468.25,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_q6c3z",
+          "symbol": "BEML.NS",
+          "name": "BEML Limited",
+          "type": "BUY",
+          "qty": 20,
+          "price": 4231.33,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_drwc8",
+          "symbol": "BERGEPAINT.NS",
+          "name": "Berger Paints India Limited",
+          "type": "BUY",
+          "qty": 10,
+          "price": 487.47,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_ihs1g",
+          "symbol": "BESTAGRO.NS",
+          "name": "Best Agrolife Limited",
+          "type": "BUY",
+          "qty": 1000,
+          "price": 19.21,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_l1m0w",
+          "symbol": "BBL.NS",
+          "name": "Bharat Bijlee Limited",
+          "type": "BUY",
+          "qty": 18,
+          "price": 3565.62,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_ec2kg",
+          "symbol": "BEL.NS",
+          "name": "Bharat Electronics Limited",
+          "type": "BUY",
+          "qty": 50,
+          "price": 433.49,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_dcmww",
+          "symbol": "BHARATFORG.NS",
+          "name": "Bharat Forge Limited",
+          "type": "BUY",
+          "qty": 5,
+          "price": 1030.43,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_i4haw",
+          "symbol": "BHARATRAS.NS",
+          "name": "Bharat Rasayan Limited",
+          "type": "BUY",
+          "qty": 8,
+          "price": 10245.12,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_0jibw",
+          "symbol": "BHEL.NS",
+          "name": "Bharat Heavy Electricals Limited",
+          "type": "BUY",
+          "qty": 10,
+          "price": 404.18,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_bbi8m",
+          "symbol": "GROWW.NS",
+          "name": "BILLIONBRAINS GARAGE VN L",
+          "type": "BUY",
+          "qty": 40,
+          "price": 198.61,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_w86i7",
+          "symbol": "BSE.NS",
+          "name": "BSE Limited",
+          "type": "BUY",
+          "qty": 31,
+          "price": 2340.71,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_rhnrp",
+          "symbol": "CAPACITE.NS",
+          "name": "Capacit'e Infraprojects Limited",
+          "type": "BUY",
+          "qty": 85,
+          "price": 255.52,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_liz1r",
+          "symbol": "CELLO.NS",
+          "name": "Cello World Limited",
+          "type": "BUY",
+          "qty": 60,
+          "price": 534.56,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_5svas",
+          "symbol": "CEREBRAINT.NS",
+          "name": "Cerebra Integrated Technologies Limited",
+          "type": "BUY",
+          "qty": 23900,
+          "price": 7.22,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_p5t00",
+          "symbol": "DELTACORP.NS",
+          "name": "Delta Corp Limited",
+          "type": "BUY",
+          "qty": 210,
+          "price": 66.55,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_20j2y",
+          "symbol": "E2E.NS",
+          "name": "E2E Networks Limited",
+          "type": "BUY",
+          "qty": 25,
+          "price": 427.44,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_b57df",
+          "symbol": "EDELWEISS.NS",
+          "name": "Edelweiss Financial Services Limited",
+          "type": "BUY",
+          "qty": 385,
+          "price": 111.93,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_uxu8n",
+          "symbol": "EPACK.NS",
+          "name": "EPACK Durable Limited",
+          "type": "BUY",
+          "qty": 140,
+          "price": 285.29,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_w5xmv",
+          "symbol": "GGENG.BO",
+          "name": "G G Engineering Limited",
+          "type": "BUY",
+          "qty": 20000,
+          "price": 1.53,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_5w68y",
+          "symbol": "GODFRYPHLP.NS",
+          "name": "Godfrey Phillips India Limited",
+          "type": "BUY",
+          "qty": 12,
+          "price": 2108.63,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_ymqi8",
+          "symbol": "GOURMET.BO",
+          "name": "Gourmet Gateway India Ltd",
+          "type": "BUY",
+          "qty": 100,
+          "price": 7.92,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_cg9hq",
+          "symbol": "GIPCL.NS",
+          "name": "Gujarat Industries Power Company Limited",
+          "type": "BUY",
+          "qty": 180,
+          "price": 163.04,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_tlag2",
+          "symbol": "HAPPSTMNDS.NS",
+          "name": "Happiest Minds Technologies Limited",
+          "type": "BUY",
+          "qty": 25,
+          "price": 580.12,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_4k17a",
+          "symbol": "HDFCBANK.NS",
+          "name": "HDFC Bank Limited",
+          "type": "BUY",
+          "qty": 15,
+          "price": 767.61,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_66otv",
+          "symbol": "HCC.NS",
+          "name": "Hindustan Construction Company Limited",
+          "type": "BUY",
+          "qty": 50,
+          "price": 17.65,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_zde3j",
+          "symbol": "HINDZINC.NS",
+          "name": "Hindustan Zinc Limited",
+          "type": "BUY",
+          "qty": 2,
+          "price": 420.59,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_628ee",
+          "symbol": "HGS.NS",
+          "name": "Hinduja Global Solutions Limited",
+          "type": "BUY",
+          "qty": 146,
+          "price": 487.79,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_ecf50",
+          "symbol": "HAL.NS",
+          "name": "Hindustan Aeronautics Limited",
+          "type": "BUY",
+          "qty": 4,
+          "price": 4138.19,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_03om1",
+          "symbol": "ICICIBANK.NS",
+          "name": "ICICI Bank Limited",
+          "type": "BUY",
+          "qty": 355,
+          "price": 1351.89,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_rwl6r",
+          "symbol": "IDFCFIRSTB.NS",
+          "name": "IDFC First Bank Limited",
+          "type": "BUY",
+          "qty": 700,
+          "price": 67.54,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_zz6f8",
+          "symbol": "INDRAMEDCO.NS",
+          "name": "Indraprastha Medical Corporation Limited",
+          "type": "BUY",
+          "qty": 100,
+          "price": 439.69,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_1ana8",
+          "symbol": "ITCHOTELS.NS",
+          "name": "ITC HOTELS LIMITED",
+          "type": "BUY",
+          "qty": 85,
+          "price": 332.93,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_iw8x8",
+          "symbol": "JPPOWER.NS",
+          "name": "Jaiprakash Power Ventures Limited",
+          "type": "BUY",
+          "qty": 250,
+          "price": 19.4,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_xp7lg",
+          "symbol": "JIOFIN.NS",
+          "name": "Jio Financial Services Limited",
+          "type": "BUY",
+          "qty": 5,
+          "price": 242.46,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_fgfnr",
+          "symbol": "COCKERILL.NS",
+          "name": "John Cockerill India Limited",
+          "type": "BUY",
+          "qty": 23,
+          "price": 8025.54,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_hox9t",
+          "symbol": "JSWHL.NS",
+          "name": "JSW Holdings Limited",
+          "type": "BUY",
+          "qty": 3,
+          "price": 12176.04,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_a8gl9",
+          "symbol": "RUSTOMJEE.NS",
+          "name": "Keystone Realtors Limited",
+          "type": "BUY",
+          "qty": 185,
+          "price": 652.82,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_7txmb",
+          "symbol": "MID150.NS",
+          "name": "Kotak Mahindra Mutual Fund - Kotak Nifty Midcap 150 Etf",
+          "type": "BUY",
+          "qty": 35,
+          "price": 386.16,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_yk2ie",
+          "symbol": "LTF.NS",
+          "name": "L&T Finance",
+          "type": "BUY",
+          "qty": 50,
+          "price": 282.29,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_nlhkl",
+          "symbol": "LANCER.BO",
+          "name": "Lancer Container Lines Limited",
+          "type": "BUY",
+          "qty": 2100,
+          "price": 31.58,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_xhe4p",
+          "symbol": "LT.NS",
+          "name": "Larsen & Toubro Limited",
+          "type": "BUY",
+          "qty": 13,
+          "price": 3915.07,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_ks9pc",
+          "symbol": "LXCHEM.NS",
+          "name": "Laxmi Organic Industries Limited",
+          "type": "BUY",
+          "qty": 30,
+          "price": 169.87,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_75ow4",
+          "symbol": "LICI.NS",
+          "name": "Life Insurance Corporation",
+          "type": "BUY",
+          "qty": 10,
+          "price": 414.43,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_n68gm",
+          "symbol": "LINC.NS",
+          "name": "Linc Limited",
+          "type": "BUY",
+          "qty": 423,
+          "price": 126.23,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_xyc47",
+          "symbol": "MASPTOP50.NS",
+          "name": "Mirae Asset S&P 500 Top 50 ETF",
+          "type": "BUY",
+          "qty": 400,
+          "price": 82.9,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_bxmpl",
+          "symbol": "MMTC.NS",
+          "name": "MMTC Limited",
+          "type": "BUY",
+          "qty": 50,
+          "price": 78.63,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_ckxx2",
+          "symbol": "MTARTECH.NS",
+          "name": "MTAR Technologies Limited",
+          "type": "BUY",
+          "qty": 6,
+          "price": 3349.17,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_vekmy",
+          "symbol": "MTNL.NS",
+          "name": "Mahanagar Telephone Nigam Limited",
+          "type": "BUY",
+          "qty": 450,
+          "price": 50,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_6ctcl",
+          "symbol": "NATPLAS.BO",
+          "name": "National Plastic Industries Limited",
+          "type": "BUY",
+          "qty": 2541,
+          "price": 62.06,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_27v6c",
+          "symbol": "NCLIND.NS",
+          "name": "NCL Industries Limited",
+          "type": "BUY",
+          "qty": 106,
+          "price": 236.25,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_62s77",
+          "symbol": "NIACL.NS",
+          "name": "The New India Assurance Company Limited",
+          "type": "BUY",
+          "qty": 15,
+          "price": 160.24,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_xqhl0",
+          "symbol": "NHPC.NS",
+          "name": "NHPC Limited",
+          "type": "BUY",
+          "qty": 20,
+          "price": 77.4,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_1ngev",
+          "symbol": "NILE.NS",
+          "name": "Nile Limited",
+          "type": "BUY",
+          "qty": 27,
+          "price": 1504.04,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_vvzku",
+          "symbol": "NILKAMAL.NS",
+          "name": "Nilkamal Limited",
+          "type": "BUY",
+          "qty": 25,
+          "price": 1635.49,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_50ib0",
+          "symbol": "ONGC.NS",
+          "name": "Oil and Natural Gas Corporation Limited",
+          "type": "BUY",
+          "qty": 30,
+          "price": 216.48,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_qkrs1",
+          "symbol": "PAISALO.NS",
+          "name": "Paisalo Digital Limited",
+          "type": "BUY",
+          "qty": 39205,
+          "price": 42.61,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_85l2g",
+          "symbol": "PANCM.BO",
+          "name": "Panyam Cements and Mineral Industries Limited",
+          "type": "BUY",
+          "qty": 531,
+          "price": 104.57,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_yfykd",
+          "symbol": "PGEL.NS",
+          "name": "PG Electroplast Limited",
+          "type": "BUY",
+          "qty": 5,
+          "price": 557.31,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_v4jcj",
+          "symbol": "PNB.NS",
+          "name": "Punjab National Bank",
+          "type": "BUY",
+          "qty": 2600,
+          "price": 83,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_zx5ke",
+          "symbol": "POONAWALLA.NS",
+          "name": "Poonawalla Fincorp Limited",
+          "type": "BUY",
+          "qty": 60,
+          "price": 433.78,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_uylat",
+          "symbol": "POWERMECH.NS",
+          "name": "Power Mech Projects Limited",
+          "type": "BUY",
+          "qty": 5,
+          "price": 2442.03,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_6c5ji",
+          "symbol": "PROTEAN.NS",
+          "name": "Protean eGov Technologies Limited",
+          "type": "BUY",
+          "qty": 62,
+          "price": 1104.88,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_jswhd",
+          "symbol": "PSB.NS",
+          "name": "Punjab & Sind Bank",
+          "type": "BUY",
+          "qty": 550,
+          "price": 31.52,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_kelw1",
+          "symbol": "RAMASTEEL.NS",
+          "name": "Rama Steel Tubes Limited",
+          "type": "BUY",
+          "qty": 5500,
+          "price": 7.87,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_tdvzp",
+          "symbol": "RCF.NS",
+          "name": "Rashtriya Chemicals and Fertilizers Limited",
+          "type": "BUY",
+          "qty": 530,
+          "price": 158.64,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_fw0u6",
+          "symbol": "RASIELEC.BO",
+          "name": "Rasi Electrodes Limited",
+          "type": "BUY",
+          "qty": 830,
+          "price": 29.42,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_95s38",
+          "symbol": "RECLTD.NS",
+          "name": "REC Limited",
+          "type": "BUY",
+          "qty": 175,
+          "price": 361.38,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_8h234",
+          "symbol": "RIIL.NS",
+          "name": "Reliance Industrial Infrastructure Limited",
+          "type": "BUY",
+          "qty": 1,
+          "price": 1201.24,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_l5vsn",
+          "symbol": "RELINFRA.NS",
+          "name": "Reliance Infrastructure Limited",
+          "type": "BUY",
+          "qty": 590,
+          "price": 135.54,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_omgxs",
+          "symbol": "SAKUMA.NS",
+          "name": "Sakuma Exports Limited",
+          "type": "BUY",
+          "qty": 3000,
+          "price": 7.24,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_a66sr",
+          "symbol": "SAMMAANCAP.NS",
+          "name": "Sammaan Capital Limited",
+          "type": "BUY",
+          "qty": 20,
+          "price": 186.19,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_77uf6",
+          "symbol": "SEPC.NS",
+          "name": "SEPC Limited",
+          "type": "BUY",
+          "qty": 2410,
+          "price": 14.59,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_2ok7t",
+          "symbol": "SHRIRAMFIN.NS",
+          "name": "Shriram Finance Limited",
+          "type": "BUY",
+          "qty": 30,
+          "price": 601.75,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_uujmp",
+          "symbol": "SIEMENS.NS",
+          "name": "Siemens",
+          "type": "BUY",
+          "qty": 2,
+          "price": 5765.41,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_zhyj2",
+          "symbol": "ENRIN.NS",
+          "name": "Siemens Energy India Limited",
+          "type": "BUY",
+          "qty": 12,
+          "price": 3688.02,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_oh1jr",
+          "symbol": "SIYARAM.BO",
+          "name": "Siyaram Recycling Industries Limited",
+          "type": "BUY",
+          "qty": 1500,
+          "price": 37.02,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_vikiz",
+          "symbol": "SIYSIL.NS",
+          "name": "Siyaram Silk Mills Limited",
+          "type": "BUY",
+          "qty": 73,
+          "price": 636.26,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_7bfnk",
+          "symbol": "SMCGLOBAL.NS",
+          "name": "SMC Global Securities Limited",
+          "type": "BUY",
+          "qty": 100,
+          "price": 60,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_0dyyu",
+          "symbol": "SOUTHBANK.NS",
+          "name": "South Indian Bank",
+          "type": "BUY",
+          "qty": 100,
+          "price": 40.09,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_er6qo",
+          "symbol": "VANDU.BO",
+          "name": "LEO DRYFRUITS & SPICES TRADING",
+          "type": "BUY",
+          "qty": 426,
+          "price": 92.26,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_8fi43",
+          "symbol": "SUBEXLTD.NS",
+          "name": "Subex Limited",
+          "type": "BUY",
+          "qty": 3200,
+          "price": 21.39,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_7id8a",
+          "symbol": "SWIGGY.NS",
+          "name": "SWIGGY LIMITED",
+          "type": "BUY",
+          "qty": 1580,
+          "price": 382.35,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_7mqk1",
+          "symbol": "TAJGVK.NS",
+          "name": "TAJGVK Hotels & Resorts Limited",
+          "type": "BUY",
+          "qty": 60,
+          "price": 388.23,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_a18ya",
+          "symbol": "TATACHEM.NS",
+          "name": "Tata Chemicals Limited",
+          "type": "BUY",
+          "qty": 39,
+          "price": 1078.98,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_poojs",
+          "symbol": "TATACONSUM.NS",
+          "name": "Tata Consumer Products Limited",
+          "type": "BUY",
+          "qty": 3,
+          "price": 1000,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_6504m",
+          "symbol": "TATAINVEST.NS",
+          "name": "Tata Investment Corporation Limited",
+          "type": "BUY",
+          "qty": 85,
+          "price": 386.25,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_tn6zt",
+          "symbol": "TMCV.NS",
+          "name": "Tata Motors (Commercial Vehicles)",
+          "type": "BUY",
+          "qty": 81,
+          "price": 325.6,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_6sy1e",
+          "symbol": "TATAPOWER.NS",
+          "name": "The Tata Power Company Limited",
+          "type": "BUY",
+          "qty": 19,
+          "price": 357.82,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_2wqra",
+          "symbol": "TATSILV.NS",
+          "name": "Tata Mutual Fund - Tata Silver ETF Fund of Fund",
+          "type": "BUY",
+          "qty": 1000,
+          "price": 22.33,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_zwuzk",
+          "symbol": "TATATECH.NS",
+          "name": "TATA TECHNOLOGIES LIMITED",
+          "type": "BUY",
+          "qty": 37,
+          "price": 1023.26,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_or8w8",
+          "symbol": "TEXRAIL.NS",
+          "name": "Texmaco Rail & Engineering Limited",
+          "type": "BUY",
+          "qty": 300,
+          "price": 119.83,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_x7sxo",
+          "symbol": "THOMASCOTT.NS",
+          "name": "Thomas Scott (India) Limited",
+          "type": "BUY",
+          "qty": 130,
+          "price": 317.23,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_i9034",
+          "symbol": "TVSSRICHAK.NS",
+          "name": "TVS Srichakra Limited",
+          "type": "BUY",
+          "qty": 8,
+          "price": 3835.41,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_mf577",
+          "symbol": "UNITECH.NS",
+          "name": "Unitech Limited",
+          "type": "BUY",
+          "qty": 148000,
+          "price": 10.52,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_esbs0",
+          "symbol": "UTKARSHBNK.NS",
+          "name": "Utkarsh Small Finance Bank Limited",
+          "type": "BUY",
+          "qty": 100,
+          "price": 15.29,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_uoc5o",
+          "symbol": "VISL.NS",
+          "name": "VEDANTA IRON AND STEEL L",
+          "type": "BUY",
+          "qty": 540,
+          "price": 223.58,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_a3ndq",
+          "symbol": "VAML.NS",
+          "name": "Vedanta Aluminium Metal Limited",
+          "type": "BUY",
+          "qty": 550,
+          "price": 119.16,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_pm1oe",
+          "symbol": "VISL.NS",
+          "name": "VEDANTA IRON AND STEEL L",
+          "type": "BUY",
+          "qty": 640,
+          "price": 28.49,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_ydzi0",
+          "symbol": "VOGL.NS",
+          "name": "Vedanta Oil and Gas Limited",
+          "type": "BUY",
+          "qty": 540,
+          "price": 91.8,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_lnldq",
+          "symbol": "VEDPOWER.NS",
+          "name": "Vedanta Power Limited",
+          "type": "BUY",
+          "qty": 540,
+          "price": 52.24,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_tpszb",
+          "symbol": "VEEDOL.NS",
+          "name": "Veedol Corporation Limited",
+          "type": "BUY",
+          "qty": 6,
+          "price": 1387.39,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_gyhaz",
+          "symbol": "IDEA.NS",
+          "name": "Vodafone Idea Limited",
+          "type": "BUY",
+          "qty": 15010,
+          "price": 9.28,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_0wnjo",
+          "symbol": "VSTIND.NS",
+          "name": "VST Industries",
+          "type": "BUY",
+          "qty": 265,
+          "price": 316.92,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_4gncw",
+          "symbol": "WALCHANNAG.NS",
+          "name": "Walchandnagar Industries Limited",
+          "type": "BUY",
+          "qty": 104,
+          "price": 154.78,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_qs3qz",
+          "symbol": "WEBELSOLAR.NS",
+          "name": "Websol Energy System Limited",
+          "type": "BUY",
+          "qty": 200,
+          "price": 101.36,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_7ieod",
+          "symbol": "WELENT.NS",
+          "name": "Welspun Enterprises Limited",
+          "type": "BUY",
+          "qty": 40,
+          "price": 503.93,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_lr7s2",
+          "symbol": "WELSPLSOL.NS",
+          "name": "Welspun Specialty Solutions Limited",
+          "type": "BUY",
+          "qty": 82603,
+          "price": 39.43,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_sqfyc",
+          "symbol": "WENDT.NS",
+          "name": "Wendt (India) Limited",
+          "type": "BUY",
+          "qty": 5,
+          "price": 8154.96,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_dkpcz",
+          "symbol": "XCHANGING.NS",
+          "name": "Xchanging Solutions Limited",
+          "type": "BUY",
+          "qty": 290,
+          "price": 88.02,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_om3qg",
+          "symbol": "YESBANK.NS",
+          "name": "Yes Bank Limited",
+          "type": "BUY",
+          "qty": 16000,
+          "price": 20.59,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845457_41o33",
+          "symbol": "ZENITHSTL.NS",
+          "name": "Zenith Steel Pipes & Industries Limited",
+          "type": "BUY",
+          "qty": 1050,
+          "price": 8.7,
+          "date": "2026-07-02",
+          "isin": null
+        }
+      ],
+      "createdAt": 1783059845455
+    },
+    {
+      "id": "pf1783059845459",
+      "name": "Aavesh",
+      "transactions": [
+        {
+          "id": "tx1783059845461_2vi0f",
+          "symbol": "AEROFLEX.NS",
+          "name": "Aeroflex Industries Limited",
+          "type": "BUY",
+          "qty": 5,
+          "price": 475.49,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_ka7yp",
+          "symbol": "ANDREWYU.BO",
+          "name": "Andrew Yule & Company Limited",
+          "type": "BUY",
+          "qty": 633,
+          "price": 28.16,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_e97bc",
+          "symbol": "ASIANPAINT.NS",
+          "name": "Asian Paints Limited",
+          "type": "BUY",
+          "qty": 20,
+          "price": 2783.98,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_34tma",
+          "symbol": "AVI.BO",
+          "name": "AVI Polymers Limited",
+          "type": "BUY",
+          "qty": 1000,
+          "price": 16.84,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_ojis1",
+          "symbol": "BAJAJHFL.NS",
+          "name": "BAJAJ HOUSING FINANCE LTD",
+          "type": "BUY",
+          "qty": 70,
+          "price": 134.15,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_8iqkv",
+          "symbol": "BEEKAY.NS",
+          "name": "Beekay Steel Industries Limited",
+          "type": "BUY",
+          "qty": 10,
+          "price": 588.77,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_msu2o",
+          "symbol": "BEL.NS",
+          "name": "Bharat Electronics Limited",
+          "type": "BUY",
+          "qty": 15,
+          "price": 412.8,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_dxzys",
+          "symbol": "BHARATRAS.NS",
+          "name": "Bharat Rasayan Limited",
+          "type": "BUY",
+          "qty": 8,
+          "price": 10234.1,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_465du",
+          "symbol": "BHEL.NS",
+          "name": "Bharat Heavy Electricals Limited",
+          "type": "BUY",
+          "qty": 10,
+          "price": 404.18,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_2m8uu",
+          "symbol": "GROWW.NS",
+          "name": "BILLIONBRAINS GARAGE VN L",
+          "type": "BUY",
+          "qty": 20,
+          "price": 185.57,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_09mdv",
+          "symbol": "CAPACITE.NS",
+          "name": "Capacit'e Infraprojects Limited",
+          "type": "BUY",
+          "qty": 125,
+          "price": 359.11,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_ugkg8",
+          "symbol": "CEREBRAINT.NS",
+          "name": "Cerebra Integrated Technologies Limited",
+          "type": "BUY",
+          "qty": 1769,
+          "price": 8.72,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_bry60",
+          "symbol": "CLEAN.NS",
+          "name": "Clean Science and Technology Limited",
+          "type": "BUY",
+          "qty": 16,
+          "price": 779.05,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_ilpjq",
+          "symbol": "DNAMEDIA.NS",
+          "name": "Diligent Media Corporation Limited",
+          "type": "BUY",
+          "qty": 1000,
+          "price": 3.13,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_1c2mu",
+          "symbol": "DIXON.NS",
+          "name": "Dixon Technologies (India) Limited",
+          "type": "BUY",
+          "qty": 1,
+          "price": 15562.64,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_7dfci",
+          "symbol": "DOLPHIN.NS",
+          "name": "Dolphin Offshore Enterprises (India) Limited",
+          "type": "BUY",
+          "qty": 50,
+          "price": 372.25,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_0lp2c",
+          "symbol": "EDELWEISS.NS",
+          "name": "Edelweiss Financial Services Limited",
+          "type": "BUY",
+          "qty": 600,
+          "price": 108.38,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_yrbs2",
+          "symbol": "EPACK.NS",
+          "name": "EPACK Durable Limited",
+          "type": "BUY",
+          "qty": 20,
+          "price": 233.75,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_7ttyp",
+          "symbol": "GODFRYPHLP.NS",
+          "name": "Godfrey Phillips India Limited",
+          "type": "BUY",
+          "qty": 13,
+          "price": 2276.08,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_tdty2",
+          "symbol": "GODREJPROP.NS",
+          "name": "Godrej Properties Limited",
+          "type": "BUY",
+          "qty": 40,
+          "price": 2239.51,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_0s9fh",
+          "symbol": "GTLINFRA.NS",
+          "name": "GTL Infrastructure Limited",
+          "type": "BUY",
+          "qty": 3000,
+          "price": 2.44,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_hw6vk",
+          "symbol": "GIPCL.NS",
+          "name": "Gujarat Industries Power Company Limited",
+          "type": "BUY",
+          "qty": 5,
+          "price": 216.37,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_4wp35",
+          "symbol": "HEIDELBERG.NS",
+          "name": "Heidelberg Cement India",
+          "type": "BUY",
+          "qty": 2275,
+          "price": 151.48,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_gqwf3",
+          "symbol": "HCC.NS",
+          "name": "Hindustan Construction Company Limited",
+          "type": "BUY",
+          "qty": 710,
+          "price": 29.96,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_xux52",
+          "symbol": "ICRA.NS",
+          "name": "ICRA Limited",
+          "type": "BUY",
+          "qty": 2,
+          "price": 5946.87,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_ld5ia",
+          "symbol": "INDRAMEDCO.NS",
+          "name": "Indraprastha Medical Corporation Limited",
+          "type": "BUY",
+          "qty": 69,
+          "price": 362.72,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_w8lxl",
+          "symbol": "ITCHOTELS.NS",
+          "name": "ITC HOTELS LIMITED",
+          "type": "BUY",
+          "qty": 5,
+          "price": 285.56,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_qylyq",
+          "symbol": "ITCHOTELS.NS",
+          "name": "ITC HOTELS LIMITED",
+          "type": "BUY",
+          "qty": 5,
+          "price": 155.12,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_dn0ls",
+          "symbol": "JPPOWER.NS",
+          "name": "Jaiprakash Power Ventures Limited",
+          "type": "BUY",
+          "qty": 100,
+          "price": 21.58,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_9fs6l",
+          "symbol": "JAYSYNTH.BO",
+          "name": "Jaysynth Orgochem Limited",
+          "type": "BUY",
+          "qty": 700,
+          "price": 13,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_3hne4",
+          "symbol": "COCKERILL.NS",
+          "name": "John Cockerill India Limited",
+          "type": "BUY",
+          "qty": 28,
+          "price": 7337.49,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_oc69g",
+          "symbol": "MID150.NS",
+          "name": "Kotak Mahindra Mutual Fund - Kotak Nifty Midcap 150 Etf",
+          "type": "BUY",
+          "qty": 240,
+          "price": 360.23,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_ity2z",
+          "symbol": "KWIL.NS",
+          "name": "KWALITY WALL'S (INDIA) L",
+          "type": "BUY",
+          "qty": 105,
+          "price": 33.85,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_vrasr",
+          "symbol": "LANCER.BO",
+          "name": "Lancer Container Lines Limited",
+          "type": "BUY",
+          "qty": 700,
+          "price": 29.16,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_bitez",
+          "symbol": "LT.NS",
+          "name": "Larsen & Toubro Limited",
+          "type": "BUY",
+          "qty": 6,
+          "price": 3932.26,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_wh8ud",
+          "symbol": "LICI.NS",
+          "name": "Life Insurance Corporation",
+          "type": "BUY",
+          "qty": 10,
+          "price": 205.15,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_2h7hq",
+          "symbol": "LINC.NS",
+          "name": "Linc Limited",
+          "type": "BUY",
+          "qty": 203,
+          "price": 99.5,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_glrr2",
+          "symbol": "MASPTOP50.NS",
+          "name": "Mirae Asset S&P 500 Top 50 ETF",
+          "type": "BUY",
+          "qty": 50,
+          "price": 69.55,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_pllpp",
+          "symbol": "MISHTANN.BO",
+          "name": "Mishtann Foods Limited",
+          "type": "BUY",
+          "qty": 2000,
+          "price": 7.57,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_ujsvm",
+          "symbol": "MPSLTD.NS",
+          "name": "MPS Limited",
+          "type": "BUY",
+          "qty": 1,
+          "price": 1808.39,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_i65os",
+          "symbol": "NBCC.NS",
+          "name": "NBCC (India) Limited",
+          "type": "BUY",
+          "qty": 100,
+          "price": 100.14,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_35ror",
+          "symbol": "NETWEB.NS",
+          "name": "Netweb Technologies India Limited",
+          "type": "BUY",
+          "qty": 5,
+          "price": 2596.13,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_z0f0o",
+          "symbol": "NIACL.NS",
+          "name": "The New India Assurance Company Limited",
+          "type": "BUY",
+          "qty": 10,
+          "price": 212.72,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_0ao0r",
+          "symbol": "NHPC.NS",
+          "name": "NHPC Limited",
+          "type": "BUY",
+          "qty": 20,
+          "price": 87.65,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_xtxi3",
+          "symbol": "NILE.NS",
+          "name": "Nile Limited",
+          "type": "BUY",
+          "qty": 12,
+          "price": 2140.1,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_0yix9",
+          "symbol": "NILKAMAL.NS",
+          "name": "Nilkamal Limited",
+          "type": "BUY",
+          "qty": 7,
+          "price": 1883.95,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_vgl6r",
+          "symbol": "NIF100BEES.NS",
+          "name": "Nippon India ETF Nifty 100",
+          "type": "BUY",
+          "qty": 50,
+          "price": 265.44,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_ojfbt",
+          "symbol": "NLCINDIA.NS",
+          "name": "NLC India Limited",
+          "type": "BUY",
+          "qty": 20,
+          "price": 311.1,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_dmz4v",
+          "symbol": "PAISALO.NS",
+          "name": "Paisalo Digital Limited",
+          "type": "BUY",
+          "qty": 16094,
+          "price": 45.79,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_z463b",
+          "symbol": "PLASTIBLEN.NS",
+          "name": "Plastiblends India Limited",
+          "type": "BUY",
+          "qty": 20,
+          "price": 173.41,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_kuh97",
+          "symbol": "POWERMECH.NS",
+          "name": "Power Mech Projects Limited",
+          "type": "BUY",
+          "qty": 10,
+          "price": 2436.36,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_o5cqb",
+          "symbol": "PSPPROJECT.NS",
+          "name": "PSP Projects Limited",
+          "type": "BUY",
+          "qty": 5,
+          "price": 769.54,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_64rvx",
+          "symbol": "RCF.NS",
+          "name": "Rashtriya Chemicals and Fertilizers Limited",
+          "type": "BUY",
+          "qty": 45,
+          "price": 157.7,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_qu16x",
+          "symbol": "RAYMONDREL.NS",
+          "name": "Raymond Realty Limited",
+          "type": "BUY",
+          "qty": 5,
+          "price": 1614.81,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_uvg53",
+          "symbol": "RAYMONDREL.NS",
+          "name": "Raymond Realty Limited",
+          "type": "BUY",
+          "qty": 5,
+          "price": 624.55,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_4f03w",
+          "symbol": "RECLTD.NS",
+          "name": "REC Limited",
+          "type": "BUY",
+          "qty": 30,
+          "price": 348.92,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_ho4js",
+          "symbol": "RELIANCE.NS",
+          "name": "Reliance Industries Limited",
+          "type": "BUY",
+          "qty": 1,
+          "price": 1273.44,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_34g0n",
+          "symbol": "RELINFRA.NS",
+          "name": "Reliance Infrastructure Limited",
+          "type": "BUY",
+          "qty": 40,
+          "price": 282.82,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_l5g91",
+          "symbol": "RPOWER.NS",
+          "name": "Reliance Power Limited",
+          "type": "BUY",
+          "qty": 60,
+          "price": 43.05,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_7tarq",
+          "symbol": "SABOOSOD.BO",
+          "name": "Saboo Sodium Chloro Limited",
+          "type": "BUY",
+          "qty": 300,
+          "price": 11.67,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_lfrj5",
+          "symbol": "SAMMAANCAP.NS",
+          "name": "Sammaan Capital Limited",
+          "type": "BUY",
+          "qty": 10,
+          "price": 186.11,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_ws1wd",
+          "symbol": "SBFC.NS",
+          "name": "SBFC Finance Limited",
+          "type": "BUY",
+          "qty": 50,
+          "price": 91.59,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_z8ltv",
+          "symbol": "SBINEQWETF.NS",
+          "name": "SBI Nifty50 Equal Weight ETF",
+          "type": "BUY",
+          "qty": 1,
+          "price": 818.63,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_yljsu",
+          "symbol": "SIEMENS.NS",
+          "name": "Siemens",
+          "type": "BUY",
+          "qty": 1,
+          "price": 2824.16,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_fny0m",
+          "symbol": "SMCGLOBAL.NS",
+          "name": "SMC Global Securities Limited",
+          "type": "BUY",
+          "qty": 320,
+          "price": 105.93,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_oso02",
+          "symbol": "SOUTHBANK.NS",
+          "name": "South Indian Bank",
+          "type": "BUY",
+          "qty": 100,
+          "price": 40.11,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_6qb6s",
+          "symbol": "STLTECH.NS",
+          "name": "Sterlite Technologies Limited",
+          "type": "BUY",
+          "qty": 15,
+          "price": 590.39,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_zzlfa",
+          "symbol": "SUBEXLTD.NS",
+          "name": "Subex Limited",
+          "type": "BUY",
+          "qty": 1100,
+          "price": 30.76,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_ov9i3",
+          "symbol": "SUNFLAG.NS",
+          "name": "Sunflag Iron and Steel Company Limited",
+          "type": "BUY",
+          "qty": 5,
+          "price": 360.57,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_my0is",
+          "symbol": "SWANCORP.NS",
+          "name": "Swan Corp Limited",
+          "type": "BUY",
+          "qty": 5,
+          "price": 429.61,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_hu27s",
+          "symbol": "SWIGGY.NS",
+          "name": "SWIGGY LIMITED",
+          "type": "BUY",
+          "qty": 220,
+          "price": 347.44,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_a30ur",
+          "symbol": "TATAELXSI.NS",
+          "name": "Tata Elxsi Limited",
+          "type": "BUY",
+          "qty": 5,
+          "price": 5636.28,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_wcrbj",
+          "symbol": "TATAINVEST.NS",
+          "name": "Tata Investment Corporation Limited",
+          "type": "BUY",
+          "qty": 5,
+          "price": 831.96,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_07dzi",
+          "symbol": "TATSILV.NS",
+          "name": "Tata Mutual Fund - Tata Silver ETF Fund of Fund",
+          "type": "BUY",
+          "qty": 50,
+          "price": 25.53,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_u7opc",
+          "symbol": "TTML.NS",
+          "name": "Tata Teleservices (Maharashtra)",
+          "type": "BUY",
+          "qty": 100,
+          "price": 76.74,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_in7ls",
+          "symbol": "TRUALT.NS",
+          "name": "TRUALT BIOENERGY LIMITED",
+          "type": "BUY",
+          "qty": 10,
+          "price": 525.24,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_i7jbk",
+          "symbol": "UNITECH.NS",
+          "name": "Unitech Limited",
+          "type": "BUY",
+          "qty": 1794,
+          "price": 7.65,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_pv9lz",
+          "symbol": "VISL.NS",
+          "name": "VEDANTA IRON AND STEEL L",
+          "type": "BUY",
+          "qty": 50,
+          "price": 254.36,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_lh6yj",
+          "symbol": "VAML.NS",
+          "name": "Vedanta Aluminium Metal Limited",
+          "type": "BUY",
+          "qty": 85,
+          "price": 216.13,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_rruow",
+          "symbol": "VISL.NS",
+          "name": "VEDANTA IRON AND STEEL L",
+          "type": "BUY",
+          "qty": 250,
+          "price": 29.22,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_nc3cd",
+          "symbol": "VOGL.NS",
+          "name": "Vedanta Oil and Gas Limited",
+          "type": "BUY",
+          "qty": 50,
+          "price": 104.43,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_np25w",
+          "symbol": "VEDPOWER.NS",
+          "name": "Vedanta Power Limited",
+          "type": "BUY",
+          "qty": 50,
+          "price": 59.43,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_bog59",
+          "symbol": "VEEDOL.NS",
+          "name": "Veedol Corporation Limited",
+          "type": "BUY",
+          "qty": 2,
+          "price": 1408.52,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_mu8qk",
+          "symbol": "IDEA.NS",
+          "name": "Vodafone Idea Limited",
+          "type": "BUY",
+          "qty": 13400,
+          "price": 8.36,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_96y3h",
+          "symbol": "VSTIND.NS",
+          "name": "VST Industries",
+          "type": "BUY",
+          "qty": 230,
+          "price": 284.37,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_z7iye",
+          "symbol": "VSTTILLERS.NS",
+          "name": "V.S.T. Tillers Tractors Limited",
+          "type": "BUY",
+          "qty": 5,
+          "price": 4552.73,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_yksq7",
+          "symbol": "WEBELSOLAR.NS",
+          "name": "Websol Energy System Limited",
+          "type": "BUY",
+          "qty": 200,
+          "price": 107.57,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_xqr6f",
+          "symbol": "WELENT.NS",
+          "name": "Welspun Enterprises Limited",
+          "type": "BUY",
+          "qty": 10,
+          "price": 495.17,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_6mtp4",
+          "symbol": "WELSPLSOL.NS",
+          "name": "Welspun Specialty Solutions Limited",
+          "type": "BUY",
+          "qty": 44062,
+          "price": 41.12,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_ox7c5",
+          "symbol": "WENDT.NS",
+          "name": "Wendt (India) Limited",
+          "type": "BUY",
+          "qty": 1,
+          "price": 10169.94,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845461_d6btw",
+          "symbol": "YESBANK.NS",
+          "name": "Yes Bank Limited",
+          "type": "BUY",
+          "qty": 7500,
+          "price": 22.87,
+          "date": "2026-07-02",
+          "isin": null
+        }
+      ],
+      "createdAt": 1783059845459
+    },
+    {
+      "id": "pf1783059845463",
+      "name": "Bhagwati",
+      "transactions": [
+        {
+          "id": "tx1783059845465_tavt7",
+          "symbol": "BHARATRAS.NS",
+          "name": "Bharat Rasayan Limited",
+          "type": "BUY",
+          "qty": 2,
+          "price": 1590.42,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845465_2z9e3",
+          "symbol": "CEREBRAINT.NS",
+          "name": "Cerebra Integrated Technologies Limited",
+          "type": "BUY",
+          "qty": 16413,
+          "price": 9.74,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845465_f8inb",
+          "symbol": "E2E.NS",
+          "name": "E2E Networks Limited",
+          "type": "BUY",
+          "qty": 100,
+          "price": 29.4,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845465_afsuk",
+          "symbol": "HGS.NS",
+          "name": "Hinduja Global Solutions Limited",
+          "type": "BUY",
+          "qty": 10,
+          "price": 536.71,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845465_gb9ca",
+          "symbol": "INDOWIND.NS",
+          "name": "Indowind Energy Limited",
+          "type": "BUY",
+          "qty": 1500,
+          "price": 15.03,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845465_iw8gf",
+          "symbol": "INDRAMEDCO.NS",
+          "name": "Indraprastha Medical Corporation Limited",
+          "type": "BUY",
+          "qty": 35,
+          "price": 475.79,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845465_1zkwm",
+          "symbol": "ITCHOTELS.NS",
+          "name": "ITC HOTELS LIMITED",
+          "type": "BUY",
+          "qty": 5,
+          "price": 300.06,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845465_aqc2o",
+          "symbol": "ITCHOTELS.NS",
+          "name": "ITC HOTELS LIMITED",
+          "type": "BUY",
+          "qty": 10,
+          "price": 172.26,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845465_47bth",
+          "symbol": "JIOFIN.NS",
+          "name": "Jio Financial Services Limited",
+          "type": "BUY",
+          "qty": 89,
+          "price": 227.65,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845465_2qeqh",
+          "symbol": "MID150.NS",
+          "name": "Kotak Mahindra Mutual Fund - Kotak Nifty Midcap 150 Etf",
+          "type": "BUY",
+          "qty": 30,
+          "price": 426.2,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845465_u63vd",
+          "symbol": "LTM.NS",
+          "name": "LTM Limited",
+          "type": "BUY",
+          "qty": 5,
+          "price": 4682.35,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845465_l3hm1",
+          "symbol": "MASPTOP50.NS",
+          "name": "Mirae Asset S&P 500 Top 50 ETF",
+          "type": "BUY",
+          "qty": 100,
+          "price": 82.9,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845465_x4ohp",
+          "symbol": "MIRZAINT.NS",
+          "name": "Mirza International Limited",
+          "type": "BUY",
+          "qty": 300,
+          "price": 53.11,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845465_haapu",
+          "symbol": "PAISALO.NS",
+          "name": "Paisalo Digital Limited",
+          "type": "BUY",
+          "qty": 35900,
+          "price": 45.66,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845465_4jmgb",
+          "symbol": "PANCM.BO",
+          "name": "Panyam Cements and Mineral Industries Limited",
+          "type": "BUY",
+          "qty": 14,
+          "price": 118.65,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845465_alqbs",
+          "symbol": "PATELENG.NS",
+          "name": "Patel Engineering Limited",
+          "type": "BUY",
+          "qty": 200,
+          "price": 33.85,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845465_v5c18",
+          "symbol": "POONAWALLA.NS",
+          "name": "Poonawalla Fincorp Limited",
+          "type": "BUY",
+          "qty": 15,
+          "price": 437.75,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845465_msktp",
+          "symbol": "RTNPOWER.NS",
+          "name": "RattanIndia Power Limited",
+          "type": "BUY",
+          "qty": 1000,
+          "price": 10.27,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845465_47skr",
+          "symbol": "RECLTD.NS",
+          "name": "REC Limited",
+          "type": "BUY",
+          "qty": 45,
+          "price": 345.8,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845465_vlb1b",
+          "symbol": "RELINFRA.NS",
+          "name": "Reliance Infrastructure Limited",
+          "type": "BUY",
+          "qty": 100,
+          "price": 296,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845465_ndvp9",
+          "symbol": "RPOWER.NS",
+          "name": "Reliance Power Limited",
+          "type": "BUY",
+          "qty": 60,
+          "price": 43.05,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845465_jro18",
+          "symbol": "SOMICONVEY.NS",
+          "name": "Somi Conveyor Beltings Limited",
+          "type": "BUY",
+          "qty": 100,
+          "price": 102.41,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845465_1pfhf",
+          "symbol": "SUNFLAG.NS",
+          "name": "Sunflag Iron and Steel Company Limited",
+          "type": "BUY",
+          "qty": 5,
+          "price": 338.65,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845465_6imfo",
+          "symbol": "SWIGGY.NS",
+          "name": "SWIGGY LIMITED",
+          "type": "BUY",
+          "qty": 20,
+          "price": 242.89,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845465_x90cv",
+          "symbol": "UNITECH.NS",
+          "name": "Unitech Limited",
+          "type": "BUY",
+          "qty": 15308,
+          "price": 5.98,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845465_0606x",
+          "symbol": "VISL.NS",
+          "name": "VEDANTA IRON AND STEEL L",
+          "type": "BUY",
+          "qty": 30,
+          "price": 341.75,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845465_2ydww",
+          "symbol": "VAML.NS",
+          "name": "Vedanta Aluminium Metal Limited",
+          "type": "BUY",
+          "qty": 40,
+          "price": 248.82,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845465_tbeau",
+          "symbol": "VISL.NS",
+          "name": "VEDANTA IRON AND STEEL L",
+          "type": "BUY",
+          "qty": 70,
+          "price": 35.98,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845465_das5d",
+          "symbol": "VOGL.NS",
+          "name": "Vedanta Oil and Gas Limited",
+          "type": "BUY",
+          "qty": 20,
+          "price": 154.39,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845465_57yfv",
+          "symbol": "VEDPOWER.NS",
+          "name": "Vedanta Power Limited",
+          "type": "BUY",
+          "qty": 20,
+          "price": 87.86,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845465_7bnp2",
+          "symbol": "IDEA.NS",
+          "name": "Vodafone Idea Limited",
+          "type": "BUY",
+          "qty": 1000,
+          "price": 7.08,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845465_v7qey",
+          "symbol": "VSTIND.NS",
+          "name": "VST Industries",
+          "type": "BUY",
+          "qty": 20,
+          "price": 263.64,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845465_p5126",
+          "symbol": "WAAREERTL.NS",
+          "name": "Waaree Renewable Technologies Limited",
+          "type": "BUY",
+          "qty": 2,
+          "price": 1236.36,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845465_a3ny7",
+          "symbol": "WEBELSOLAR.NS",
+          "name": "Websol Energy System Limited",
+          "type": "BUY",
+          "qty": 50,
+          "price": 102.01,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845465_g6zfo",
+          "symbol": "WELSPLSOL.NS",
+          "name": "Welspun Specialty Solutions Limited",
+          "type": "BUY",
+          "qty": 23556,
+          "price": 40.32,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845465_6rwqx",
+          "symbol": "YESBANK.NS",
+          "name": "Yes Bank Limited",
+          "type": "BUY",
+          "qty": 8200,
+          "price": 22.13,
+          "date": "2026-07-02",
+          "isin": null
+        },
+        {
+          "id": "tx1783059845465_h4i60",
+          "symbol": "ZENITHSTL.NS",
+          "name": "Zenith Steel Pipes & Industries Limited",
+          "type": "BUY",
+          "qty": 7000,
+          "price": 8.69,
+          "date": "2026-07-02",
+          "isin": null
+        }
+      ],
+      "createdAt": 1783059845463
+    }
+  ]
+}

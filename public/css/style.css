@@ -275,6 +275,18 @@ table.data tbody tr:hover { background: #f4f8ff; }
   border-radius: 8px; font-size: 0.74rem; color: #8a6d1a; line-height: 1.5;
 }
 
+/* ---------- gold & silver ---------- */
+.cmd-signal {
+  border-radius: 10px; padding: 14px 16px; border: 1px solid var(--border);
+  background: #f8fafc;
+}
+.cmd-signal.up { background: var(--green-bg); border-color: #bfe8d9; }
+.cmd-signal.down { background: var(--red-bg); border-color: #f3caca; }
+.cmd-signal .cs-action { font-weight: 800; font-size: 0.95rem; letter-spacing: 0.6px; font-family: var(--mono); }
+.cmd-signal.up .cs-action { color: var(--green); }
+.cmd-signal.down .cs-action { color: var(--red); }
+.cmd-signal .cs-text { font-size: 0.82rem; color: #3c4a63; margin-top: 5px; line-height: 1.5; }
+
 /* ---------- ideas ---------- */
 .ideas-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
 .idea-card {

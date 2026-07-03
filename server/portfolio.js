@@ -84,9 +84,17 @@ function cloudBackupSoon() {
   }, 2000);
 }
 
+const SEED_FILE = path.join(__dirname, '..', 'data-seed', 'portfolios.seed.json');
+
 function loadState() {
   const st = loadJSON(PF_FILE, null);
   if (st && Array.isArray(st.portfolios)) return st;
+  // fresh/ephemeral host (e.g. Render free tier): fall back to the committed seed
+  const seed = loadJSON(SEED_FILE, null);
+  if (seed && Array.isArray(seed.portfolios)) {
+    saveJSON(PF_FILE, seed);
+    return seed;
+  }
   return {
     portfolios: [{ id: 'default', name: 'My Portfolio', transactions: [], createdAt: Date.now() }],
   };
