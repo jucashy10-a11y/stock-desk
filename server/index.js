@@ -51,10 +51,29 @@ app.post('/api/login', (req, res) => {
 
 app.use('/api', (req, res, next) => {
   if (!APP_PASSWORD) return next();
-  if (req.path === '/login' || req.path === '/kite/callback') return next();
+  if (req.path === '/login' || req.path === '/kite/callback' || req.path === '/health') return next();
   if ((req.headers.cookie || '').includes('sd_auth=' + AUTH_TOKEN)) return next();
   res.status(401).json({ error: 'auth required' });
 });
+
+/** Public heartbeat — used by the keep-alive self-ping and uptime monitors. */
+app.get('/api/health', (req, res) => {
+  res.json({ ok: true, up: process.uptime(), at: Date.now() });
+});
+
+/**
+ * Keep-alive: Render's free tier spins the instance down after ~15 idle
+ * minutes. Pinging our own public URL every 10 minutes keeps it warm 24/7
+ * (a full month ≈ 744h fits inside the 750 free instance-hours).
+ * RENDER_EXTERNAL_URL is set automatically by Render — no-op locally.
+ */
+const SELF_URL = process.env.RENDER_EXTERNAL_URL || process.env.SELF_PING_URL || '';
+if (SELF_URL) {
+  setInterval(() => {
+    fetch(`${SELF_URL}/api/health`).catch(() => {});
+  }, 10 * 60 * 1000);
+  console.log(`[keepalive] self-ping enabled -> ${SELF_URL}/api/health every 10 min`);
+}
 
 const wrap = (fn) => (req, res) =>
   Promise.resolve(fn(req, res)).catch((e) => {
