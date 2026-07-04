@@ -361,6 +361,60 @@ async function research(symbol) {
   else if (composite >= 30) { verdict = 'WEAK'; verdictColor = 'red'; }
   else { verdict = 'HIGH RISK / AVOID'; verdictColor = 'red'; }
 
+  // one-line plain-language read
+  const fStrong = fundamentalsAvailable && fScore >= 70;
+  const fWeak = fundamentalsAvailable && fScore < 45;
+  const tStrong = tScore >= 65;
+  const tWeak = tScore < 40;
+  const expensive = fund?.pe != null && fund.pe > 45;
+  let plainVerdict;
+  if (fStrong && tStrong) plainVerdict = expensive ? 'Expensive but firing on all cylinders — quality momentum.' : 'Good business in an uptrend — rare combination, worth attention.';
+  else if (fStrong && tWeak) plainVerdict = 'Good long-term compounder going through a weak price phase — one for patient accumulation, not quick gains.';
+  else if (fStrong) plainVerdict = expensive ? 'Strong company, rich valuation — returns may need patience.' : 'Fundamentally solid; price action is undecided.';
+  else if (fWeak && tStrong) plainVerdict = 'Momentum trade only — the price is running but the business numbers don\'t back it. Use stop-losses.';
+  else if (fWeak && tWeak) plainVerdict = 'Weak business, weak chart — avoid until something changes.';
+  else if (tWeak) plainVerdict = 'Avoid until the trend improves — no rush to catch this falling knife.';
+  else plainVerdict = 'Middle of the pack — needs either better numbers or a stronger trend to be interesting.';
+
+  // ----- valuation score (0-100): cheaper vs fair value + sane P/E = higher -----
+  let valuationScore = null;
+  if (valuation?.fairValue != null) {
+    let vs = 50 + clamp(valuation.upsidePct, -60, 60) * 0.6;
+    if (fund?.pe != null && fund.pe > 0) {
+      vs += scoreBand(fund.pe, [[15, 12], [25, 6], [40, 0], [70, -8], [Infinity, -16]]);
+    }
+    if (fund?.pb != null && fund.pb > 0) vs += scoreBand(fund.pb, [[1.5, 8], [3, 3], [6, -3], [Infinity, -8]]);
+    valuationScore = clamp(Math.round(vs), 0, 100);
+  } else if (fund?.pe != null && fund.pe > 0) {
+    valuationScore = clamp(Math.round(55 + scoreBand(fund.pe, [[15, 15], [25, 5], [40, -5], [70, -15], [Infinity, -25]])), 0, 100);
+  }
+
+  // ----- risk score (0-100, HIGHER = riskier) -----
+  let riskPts = 30;
+  const risks = [];
+  if (t.vol1y != null) {
+    if (t.vol1y > 55) { riskPts += 22; risks.push(`Very high volatility (${t.vol1y.toFixed(0)}% annualised) — sharp swings both ways`); }
+    else if (t.vol1y > 38) { riskPts += 12; risks.push(`Elevated volatility (${t.vol1y.toFixed(0)}% annualised)`); }
+    else if (t.vol1y < 22) riskPts -= 6;
+  }
+  if (fund?.debtToEquity != null && fund.debtToEquity > 150) { riskPts += 15; risks.push(`High leverage (debt/equity ≈ ${(fund.debtToEquity / 100).toFixed(1)}x) — vulnerable if rates rise or earnings dip`); }
+  if (fund?.profitMargin != null && fund.profitMargin < 0) { riskPts += 15; risks.push('Loss-making — no earnings cushion if conditions worsen'); }
+  if (t.sma200 != null && price < t.sma200) { riskPts += 10; risks.push('Below 200-day average — the primary trend is not on your side'); }
+  if (expensive) { riskPts += 10; risks.push(`Rich valuation (${fund.pe.toFixed(0)}x P/E) leaves little room for disappointment`); }
+  if (fund?.marketCap != null && fund.marketCap < 5000e7) { riskPts += 8; risks.push('Small-cap — thinner liquidity and bigger drawdowns in bad markets'); }
+  if (t.pctFromHigh != null && t.pctFromHigh < -40) { riskPts += 6; risks.push(`Down ${Math.abs(t.pctFromHigh).toFixed(0)}% from its high — falling knives can keep falling`); }
+  const riskScore = clamp(Math.round(riskPts), 5, 100);
+  const riskLabel = riskScore >= 70 ? 'HIGH' : riskScore >= 45 ? 'MODERATE' : 'LOWER';
+
+  // ----- confidence: how much data backed this call -----
+  let conf = 40;
+  if (fundamentalsAvailable) conf += 20;
+  if (annual.length >= 4) conf += 12;
+  if (fund?.analystCount) conf += Math.min(fund.analystCount, 15);
+  if (statements.quarterly?.length >= 4) conf += 8;
+  if (candles.length >= 400) conf += 5;
+  const confidence = clamp(Math.round(conf), 25, 95);
+
   // ----- projections -----
   // Short term (3 months): momentum tilt bounded by volatility.
   const vol3m = t.vol3m ?? 30;
@@ -412,9 +466,19 @@ async function research(symbol) {
     statements,
     valuation,
     technicals: t,
-    scores: { technical: tScore, fundamental: fundamentalsAvailable ? fScore : null, composite },
+    scores: {
+      technical: tScore,
+      fundamental: fundamentalsAvailable ? fScore : null,
+      valuation: valuationScore,
+      risk: riskScore,
+      riskLabel,
+      confidence,
+      composite,
+    },
     verdict,
     verdictColor,
+    plainVerdict,
+    whatCanGoWrong: risks.slice(0, 4),
     positives: [...tPoints.filter((p) => p.good), ...fPoints.filter((p) => p.good)].map((p) => p.text),
     negatives: [...tPoints.filter((p) => !p.good), ...fPoints.filter((p) => !p.good)].map((p) => p.text),
     shortTerm,

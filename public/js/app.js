@@ -247,9 +247,15 @@ async function renderDashboard() {
     <div class="econ-strip" id="econ-strip"></div>
     <div class="page-sub" id="dash-sub" style="margin-top:4px"></div>
     <div class="index-row" id="index-row">${'<div class="index-card"><div class="skeleton" style="height:52px"></div></div>'.repeat(6)}</div>
-    <div class="card" style="margin-bottom:16px" id="wl-card">
-      <div class="card-head"><span class="card-title">⭐ Watchlist</span><span class="muted" style="font-size:.72rem">star stocks from their page</span></div>
-      <div id="wl-body"></div>
+    <div class="grid" style="grid-template-columns: 1fr 1fr; align-items:start; margin-bottom:16px" id="wl-alerts-grid">
+      <div class="card" id="wl-card">
+        <div class="card-head"><span class="card-title">⭐ Watchlist</span><span class="muted" style="font-size:.72rem">star stocks from their page</span></div>
+        <div id="wl-body"></div>
+      </div>
+      <div class="card" id="alerts-card">
+        <div class="card-head"><span class="card-title">🔔 Alerts</span><span class="muted" style="font-size:.72rem">checked every minute, 24/7</span></div>
+        <div id="alerts-body"></div>
+      </div>
     </div>
     <div class="grid" style="grid-template-columns: 1fr 1fr; align-items:start" id="dash-grid">
       <div class="card">
@@ -321,6 +327,23 @@ async function renderDashboard() {
           loadExtras();
         };
       });
+    } catch {}
+    // alerts
+    try {
+      const al = await api('/api/alerts');
+      $('#alerts-body').innerHTML = al.length
+        ? `<div class="alerts-list">${al.map((a) => `
+            <div class="alert-row ${a.status === 'triggered' ? 'fired' : ''}">
+              <div style="flex:1; cursor:pointer" onclick="location.hash='#/stock/${encodeURIComponent(a.symbol)}'">
+                <b>${esc(dispSym(a.symbol))}</b> <span class="muted" style="font-size:.76rem">${esc(a.label)}</span>
+                ${a.status === 'triggered' ? `<div class="up" style="font-size:.72rem; font-weight:700">✓ ${esc(a.triggerNote || 'triggered')}</div>` : `<div class="muted" style="font-size:.72rem">now ₹${a.quote ? inr(a.quote.price) : '—'}</div>`}
+              </div>
+              ${a.status === 'triggered' ? `<button class="btn sm" data-reset="${a.id}">reset</button>` : ''}
+              <button class="btn sm danger-ghost" data-delal="${a.id}">✕</button>
+            </div>`).join('')}</div>`
+        : '<div class="empty" style="padding:18px">No alerts — open a stock and tap 🔔 to set one.</div>';
+      $$('#alerts-body [data-delal]').forEach((b) => { b.onclick = async () => { await api('/api/alerts/' + b.dataset.delal, { method: 'DELETE' }); loadExtras(); }; });
+      $$('#alerts-body [data-reset]').forEach((b) => { b.onclick = async () => { await api('/api/alerts/' + b.dataset.reset + '/reset', { method: 'POST' }); loadExtras(); }; });
     } catch {}
   }
 
@@ -599,9 +622,27 @@ async function renderIdeas() {
             ? `<div class="ideas-grid">${picks.map((p) => pickCard(p, horizon)).join('')}</div>`
             : `<div class="card"><div class="empty">No stocks clear the +25% bar with acceptable scores right now — that's the honest answer today. Re-scan later or after market moves.</div></div>`}
         </div>`;
-      $('#ideas-body').innerHTML =
-        section('SHORT-TERM MOMENTUM', '1–3 months · technical strength + volatility upside', r.shortTerm, 'short') +
-        section('LONG-TERM COMPOUNDERS', '12 months · fundamentals + valuation gap', r.longTerm, 'long');
+      const scanners = r.scanners && r.scanners.length ? r.scanners : [
+        { key: 'short', label: 'SHORT-TERM MOMENTUM', subtitle: '1–3 months', horizon: 'short', picks: r.shortTerm },
+        { key: 'long', label: 'LONG-TERM COMPOUNDERS', subtitle: '12 months', horizon: 'long', picks: r.longTerm },
+      ];
+      // scanner chip filter
+      const chips = `<div class="scanner-chips" id="scanner-chips">
+        <button class="active" data-sc="all">All Scanners</button>
+        ${scanners.map((s) => `<button data-sc="${s.key}">${esc(s.label)} <span>${s.picks.length}</span></button>`).join('')}
+      </div>`;
+      const renderScanners = (only) => scanners
+        .filter((s) => only === 'all' || s.key === only)
+        .map((s) => section(s.label.toUpperCase(), s.subtitle, s.picks, s.horizon))
+        .join('') || '<div class="card"><div class="empty">Nothing in this scanner right now.</div></div>';
+      $('#ideas-body').innerHTML = chips + `<div id="scanner-out">${renderScanners('all')}</div>`;
+      $$('#scanner-chips button').forEach((b) => {
+        b.onclick = () => {
+          $$('#scanner-chips button').forEach((x) => x.classList.remove('active'));
+          b.classList.add('active');
+          $('#scanner-out').innerHTML = renderScanners(b.dataset.sc);
+        };
+      });
       setPoll(null);
     } catch (e) {
       $('#ideas-body').innerHTML = `<div class="card"><div class="empty">${esc(e.message)}</div></div>`;
@@ -724,6 +765,7 @@ async function renderStock(params) {
       </div>
       <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap">
         <button class="btn" id="watch-btn" title="Add to watchlist">☆</button>
+        <button class="btn" id="alert-btn" title="Set price alert">🔔</button>
         <button class="btn" id="add-pf-btn">+ Add to Portfolio</button>
         <button class="research-cta" id="research-btn">
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/><path d="M8 11h6M11 8v6"/></svg>
@@ -732,26 +774,47 @@ async function renderStock(params) {
       </div>
     </div>
 
-    <div class="grid" style="grid-template-columns: 2.1fr 1fr; align-items:start">
-      <div class="card chart-wrap">
-        <div id="chart-container"></div>
-        <div class="range-bar" id="range-bar">
-          ${['1D', '5D', '1M', '6M', '1Y', '5Y', 'MAX'].map((r, i) => `<button data-r="${r}" class="${r === '1Y' ? 'active' : ''}">${r}</button>`).join('')}
-          <span style="flex:1"></span>
-          <span class="muted" style="font-size:.72rem; align-self:center" id="chart-note"></span>
-        </div>
-      </div>
-      <div>
-        <div class="stat-grid" id="stat-grid"></div>
-      </div>
+    <div class="stock-tabs" id="stock-tabs">
+      <button data-tab="overview" class="active">Overview</button>
+      <button data-tab="research">Research</button>
+      <button data-tab="news">News</button>
     </div>
 
-    <div id="research-area" style="margin-top:18px"></div>
-    <div class="grid" style="grid-template-columns: 1.3fr 1fr; margin-top:18px; align-items:start">
+    <div data-panel="overview">
+      <div class="grid" style="grid-template-columns: 2.1fr 1fr; align-items:start">
+        <div class="card chart-wrap">
+          <div id="chart-container"></div>
+          <div class="range-bar" id="range-bar">
+            ${['1D', '5D', '1M', '6M', '1Y', '5Y', 'MAX'].map((r, i) => `<button data-r="${r}" class="${r === '1Y' ? 'active' : ''}">${r}</button>`).join('')}
+            <span style="flex:1"></span>
+            <label class="chart-toggle"><input type="checkbox" id="ma-toggle"/> MA 50/200</label>
+            <span class="muted" style="font-size:.72rem; align-self:center" id="chart-note"></span>
+          </div>
+        </div>
+        <div>
+          <div class="stat-grid" id="stat-grid"></div>
+        </div>
+      </div>
+      <div class="card" id="about-card" style="margin-top:18px"><div class="card-head"><span class="card-title">About the Company</span></div><div class="card-body" id="about-body"><div class="spinner"></div></div></div>
+    </div>
+
+    <div data-panel="research" class="hidden">
+      <div id="research-area"></div>
+    </div>
+
+    <div data-panel="news" class="hidden">
       <div class="card" id="news-card"><div class="card-head"><span class="card-title">Latest News</span><span class="muted" style="font-size:.7rem">Google News · tone is a keyword heuristic</span></div><div id="news-body"><div class="spinner"></div></div></div>
-      <div class="card" id="about-card"><div class="card-head"><span class="card-title">About the Company</span></div><div class="card-body" id="about-body"><div class="spinner"></div></div></div>
     </div>
   `;
+
+  let researchRun = false;
+  function switchTab(name) {
+    $$('#stock-tabs button').forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
+    $$('[data-panel]').forEach((p) => p.classList.toggle('hidden', p.dataset.panel !== name));
+    if (name === 'research' && !researchRun) { researchRun = true; $('#research-btn').click(); }
+    if (chartObjs) setTimeout(() => chartObjs.chart.timeScale().fitContent(), 50);
+  }
+  $$('#stock-tabs button').forEach((b) => { b.onclick = () => switchTab(b.dataset.tab); });
 
   // watchlist star
   (async () => {
@@ -769,6 +832,42 @@ async function renderStock(params) {
       $('#watch-btn').style.color = r.watching ? '#f5a623' : '';
       toast(r.watching ? 'Added to watchlist ⭐' : 'Removed from watchlist', 'ok');
     } catch (e) { toast(e.message, 'err'); }
+  };
+
+  // price alert
+  $('#alert-btn').onclick = () => {
+    const cur = lastPrice ? inr(lastPrice) : '';
+    const ov = modal('Set Price Alert', `
+      <p class="muted" style="font-size:.8rem; margin-bottom:12px">${esc(dispSym(symbol))}${lastPrice ? ` · now ₹${cur}` : ''} — the server checks these every minute, 24/7.</p>
+      <div class="field"><label>Alert me when</label><select id="al-type">
+        <option value="above">Price rises above ₹</option>
+        <option value="below">Price falls below ₹</option>
+        <option value="pct_up">Up X% in a day</option>
+        <option value="pct_dn">Down X% in a day</option>
+        <option value="near_high">Within 2% of 52-week high</option>
+      </select></div>
+      <div class="field" id="al-val-wrap"><label id="al-val-label">Price (₹)</label><input id="al-val" type="number" step="0.05" value="${lastPrice ? (lastPrice * 1.05).toFixed(2) : ''}"/></div>
+      <button class="btn primary" id="al-save" style="width:100%">Create Alert</button>`);
+    const sync = () => {
+      const t = $('#al-type', ov).value;
+      const wrap = $('#al-val-wrap', ov);
+      if (t === 'near_high') { wrap.style.display = 'none'; return; }
+      wrap.style.display = '';
+      $('#al-val-label', ov).textContent = t.startsWith('pct') ? 'Percent (%)' : 'Price (₹)';
+    };
+    $('#al-type', ov).onchange = sync; sync();
+    $('#al-save', ov).onclick = async () => {
+      const t = $('#al-type', ov).value;
+      const v = parseFloat($('#al-val', ov).value);
+      const body = { symbol, name: dispSym(symbol), type: t };
+      if (t === 'above' || t === 'below') body.price = v;
+      else if (t.startsWith('pct')) body.pct = v;
+      try {
+        await api('/api/alerts', { method: 'POST', body: JSON.stringify(body) });
+        ov.remove();
+        toast('Alert set 🔔', 'ok');
+      } catch (e) { toast(e.message, 'err'); }
+    };
   };
 
   // news
@@ -867,7 +966,27 @@ async function renderStock(params) {
       priceFormat: { type: 'volume' }, priceScaleId: 'vol',
     });
     chart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
-    chartObjs = { chart, candles, volume };
+    const ma50 = chart.addLineSeries({ color: '#f59e0b', lineWidth: 1.5, priceLineVisible: false, lastValueVisible: false });
+    const ma200 = chart.addLineSeries({ color: '#8b5cf6', lineWidth: 1.5, priceLineVisible: false, lastValueVisible: false });
+    chartObjs = { chart, candles, volume, ma50, ma200 };
+  }
+
+  function smaSeries(cs, period) {
+    const out = [];
+    for (let i = period - 1; i < cs.length; i++) {
+      let sum = 0;
+      for (let j = i - period + 1; j <= i; j++) sum += cs[j].close;
+      out.push({ time: cs[i].time, value: sum / period });
+    }
+    return out;
+  }
+
+  let lastCandles = [];
+  function applyMA() {
+    const on = $('#ma-toggle')?.checked;
+    if (!chartObjs) return;
+    chartObjs.ma50.setData(on && lastCandles.length >= 50 ? smaSeries(lastCandles, 50) : []);
+    chartObjs.ma200.setData(on && lastCandles.length >= 200 ? smaSeries(lastCandles, 200) : []);
   }
 
   async function loadChart(rangeKey) {
@@ -881,6 +1000,8 @@ async function renderStock(params) {
       }));
       chartObjs.candles.setData(cs);
       chartObjs.volume.setData(vs);
+      lastCandles = cs;
+      applyMA();
       chartObjs.chart.timeScale().fitContent();
       $('#chart-note').textContent = `${cs.length} candles · ${interval}`;
     } catch (e) {
@@ -901,6 +1022,7 @@ async function renderStock(params) {
       loadChart(b.dataset.r);
     };
   });
+  $('#ma-toggle').onchange = applyMA;
 
   // ----- about -----
   api('/api/fundamentals/' + encodeURIComponent(symbol))
@@ -920,6 +1042,8 @@ async function renderStock(params) {
 
   // ----- research -----
   $('#research-btn').onclick = async () => {
+    researchRun = true;
+    switchTab('research');
     const btn = $('#research-btn');
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner" style="width:16px;height:16px;border-width:2px;margin:0"></span> Analysing…';
@@ -932,7 +1056,6 @@ async function renderStock(params) {
     }
     btn.disabled = false;
     btn.innerHTML = '↻ Re-run Research';
-    $('#research-area').scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   function ring(score, label, color) {
@@ -943,6 +1066,18 @@ async function renderStock(params) {
       <circle cx="65" cy="65" r="${r}" fill="none" stroke="${color}" stroke-width="11" stroke-linecap="round"
         stroke-dasharray="${c}" stroke-dashoffset="${off}"/></svg>
       <div class="ring-val"><b>${score}</b><span>${label}</span></div>
+    </div>`;
+  }
+
+  function scoreCard(label, score, isRisk, riskLabel) {
+    if (score == null) return `<div class="score-card"><div class="sc-label">${label}</div><div class="sc-val muted">n/a</div></div>`;
+    // for risk, high = bad (red); for others, high = good (green)
+    const good = isRisk ? 100 - score : score;
+    const color = good >= 60 ? 'var(--green)' : good >= 42 ? 'var(--amber)' : 'var(--red)';
+    return `<div class="score-card">
+      <div class="sc-label">${label}${isRisk && riskLabel ? ` · ${riskLabel}` : ''}</div>
+      <div class="sc-val" style="color:${color}">${score}<small>/100</small></div>
+      <div class="sc-bar"><div style="width:${score}%; background:${color}"></div></div>
     </div>`;
   }
 
@@ -1104,19 +1239,31 @@ async function renderStock(params) {
         <div class="card-head"><span class="card-title">Research Report — ${esc(r.name)}</span>
           <span class="muted" style="font-size:.72rem">generated ${new Date(r.generatedAt).toLocaleString('en-IN')}</span></div>
         <div class="card-body">
-          <div style="display:flex; gap:26px; align-items:center; flex-wrap:wrap; margin-bottom:18px">
+          <div style="display:flex; gap:26px; align-items:center; flex-wrap:wrap; margin-bottom:16px">
             ${ring(r.scores.composite, 'COMPOSITE', scoreColor)}
-            <div style="display:flex; flex-direction:column; gap:10px">
+            <div style="display:flex; flex-direction:column; gap:10px; flex:1; min-width:260px">
               <span class="verdict-chip ${r.verdictColor}">${esc(r.verdict)}</span>
-              <div style="display:flex; gap:18px; font-size:.8rem" class="muted">
-                <span>Technical score: <b style="color:var(--text)">${r.scores.technical}/100</b></span>
-                <span>Fundamental score: <b style="color:var(--text)">${r.scores.fundamental != null ? r.scores.fundamental + '/100' : 'n/a'}</b></span>
-              </div>
-              <div class="muted" style="font-size:.78rem; max-width:520px">
-                Composite blends trend, momentum &amp; volatility signals with profitability, growth, leverage and valuation metrics${f?.analystCount ? `, plus consensus from ${f.analystCount} analysts` : ''}.
+              <div class="plain-verdict">${esc(r.plainVerdict || '')}</div>
+              <div class="conf-bar" title="How much data backed this call">
+                <span>Confidence</span>
+                <div class="conf-track"><div style="width:${r.scores.confidence}%"></div></div>
+                <b>${r.scores.confidence}%</b>
               </div>
             </div>
           </div>
+
+          <div class="score-cards">
+            ${scoreCard('Technical', r.scores.technical)}
+            ${scoreCard('Fundamental', r.scores.fundamental)}
+            ${scoreCard('Valuation', r.scores.valuation)}
+            ${scoreCard('Risk', r.scores.risk, true, r.scores.riskLabel)}
+          </div>
+
+          ${r.whatCanGoWrong && r.whatCanGoWrong.length ? `
+          <div class="wcgw">
+            <div class="wcgw-title">⚠ What can go wrong</div>
+            <ul>${r.whatCanGoWrong.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>
+          </div>` : ''}
 
           <div class="grid" style="grid-template-columns: 1fr 1fr; margin-bottom:18px">
             ${projCard('Short-term projection', r.shortTerm, r.quote.price)}
@@ -1366,13 +1513,39 @@ async function renderPortfolio() {
       <span class="chg-pill ${cls(h.dayChangePct)}">${pct(h.dayChangePct)}</span>
       <span class="num ${cls(h.dayPnl)}" style="min-width:90px; text-align:right">${money(h.dayPnl, true)}</span>
     </div>`;
+    // --- sector allocation (from backend insights)
+    const sectors = pfData.insights?.sectors || [];
+    let secAcc = 0;
+    const secStops = sectors.map((s, i) => {
+      const from = secAcc; secAcc += s.pct;
+      return `${PF_PALETTE[i % PF_PALETTE.length]} ${from.toFixed(2)}% ${secAcc.toFixed(2)}%`;
+    }).join(', ');
+
     $('#pf-mid').innerHTML = `
       <div class="card">
-        <div class="card-head"><span class="card-title">Allocation</span><span class="muted" style="font-size:.72rem">by market value</span></div>
+        <div class="card-head"><span class="card-title">Stock Allocation</span><span class="muted" style="font-size:.72rem">by market value</span></div>
         <div class="card-body" style="display:flex; gap:20px; align-items:center; flex-wrap:wrap">
           <div class="donut" style="background:conic-gradient(${stops})"><div class="donut-hole"><b>${sorted.length}</b><span>stocks</span></div></div>
           <div class="legend">${segs.map((sg) => `<div class="legend-row"><span class="lg-dot" style="background:${sg.color}"></span>
             <span class="lg-name">${esc(sg.label)}</span><span class="num lg-pct">${((sg.val / total) * 100).toFixed(1)}%</span></div>`).join('')}</div>
+        </div>
+      </div>
+      ${sectors.length ? `<div class="card">
+        <div class="card-head"><span class="card-title">Sector Allocation</span></div>
+        <div class="card-body" style="display:flex; gap:20px; align-items:center; flex-wrap:wrap">
+          <div class="donut" style="background:conic-gradient(${secStops})"><div class="donut-hole"><b>${sectors.length}</b><span>sectors</span></div></div>
+          <div class="legend">${sectors.slice(0, 8).map((s, i) => `<div class="legend-row"><span class="lg-dot" style="background:${PF_PALETTE[i % PF_PALETTE.length]}"></span>
+            <span class="lg-name">${esc(s.name)}</span><span class="num lg-pct">${s.pct.toFixed(1)}%</span></div>`).join('')}</div>
+        </div>
+      </div>` : ''}
+      <div class="card">
+        <div class="card-head"><span class="card-title">Portfolio Insights</span></div>
+        <div class="card-body">
+          <ul class="insight-list">${(pfData.insights?.insights || []).map((i) => `<li class="ins-${i.level}"><span class="ins-ico">${i.level === 'warn' ? '⚠' : i.level === 'ok' ? '✓' : 'ℹ'}</span>${esc(i.text)}</li>`).join('')}</ul>
+          ${pfData.insights?.best || pfData.insights?.worst ? `<div class="bw-row">
+            ${pfData.insights.best ? `<div class="bw best" onclick="location.hash='#/stock/${encodeURIComponent(pfData.insights.best.symbol)}'"><span>BEST</span><b>${esc(dispSym(pfData.insights.best.symbol))}</b><i class="up">${pct(pfData.insights.best.pnlPct)}</i></div>` : ''}
+            ${pfData.insights.worst ? `<div class="bw worst" onclick="location.hash='#/stock/${encodeURIComponent(pfData.insights.worst.symbol)}'"><span>WORST</span><b>${esc(dispSym(pfData.insights.worst.symbol))}</b><i class="down">${pct(pfData.insights.worst.pnlPct)}</i></div>` : ''}
+          </div>` : ''}
         </div>
       </div>
       <div class="card">

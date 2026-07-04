@@ -13,6 +13,7 @@ const research = require('./research');
 const ideas = require('./ideas');
 const commodities = require('./commodities');
 const news = require('./news');
+const alerts = require('./alerts');
 const gistsync = require('./gistsync');
 const fs = require('fs');
 const portfolio = require('./portfolio');
@@ -310,6 +311,17 @@ app.get('/api/peers/:symbol', wrap(async (req, res) => {
   res.json({ sector: sector || 'Unknown', rows });
 }));
 
+// ---------- alerts ----------
+
+app.get('/api/alerts', wrap(async (req, res) => {
+  const rows = alerts.list();
+  const quotes = rows.length ? await getQuotes([...new Set(rows.map((a) => a.symbol))]) : {};
+  res.json(rows.map((a) => ({ ...a, quote: quotes[a.symbol] || null })));
+}));
+app.post('/api/alerts', wrap(async (req, res) => res.json(alerts.add(req.body || {}))));
+app.delete('/api/alerts/:id', wrap(async (req, res) => { alerts.remove(req.params.id); res.json({ ok: true }); }));
+app.post('/api/alerts/:id/reset', wrap(async (req, res) => { alerts.reset(req.params.id); res.json({ ok: true }); }));
+
 /** Gold & Silver desk: live INR prices, projections and accumulation signal. */
 app.get('/api/commodities', wrap(async (req, res) => {
   res.json(await commodities.get());
@@ -336,6 +348,99 @@ app.delete('/api/portfolios/:id', wrap(async (req, res) => {
   portfolio.deletePortfolio(req.params.id);
   res.json({ ok: true });
 }));
+
+const SECTOR_OF = new Map(UNIVERSE.map((u) => [u.symbol, u.sector]));
+
+// Persistent sector cache for holdings outside the built-in universe.
+const SECTOR_FILE = path.join(__dirname, '..', 'data', 'sector-cache.json');
+try {
+  const cached = JSON.parse(fs.readFileSync(SECTOR_FILE, 'utf8'));
+  for (const [k, v] of Object.entries(cached)) if (!SECTOR_OF.has(k)) SECTOR_OF.set(k, v);
+} catch {}
+let sectorResolving = false;
+function persistSectors() {
+  try {
+    const obj = {};
+    for (const [k, v] of SECTOR_OF) if (!UNIVERSE.find((u) => u.symbol === k)) obj[k] = v;
+    fs.mkdirSync(path.dirname(SECTOR_FILE), { recursive: true });
+    fs.writeFileSync(SECTOR_FILE, JSON.stringify(obj));
+  } catch {}
+}
+/** Fill in sectors for unknown symbols in the background (throttled, one pass). */
+async function resolveSectors(symbols) {
+  if (sectorResolving) return;
+  const missing = [...new Set(symbols)].filter((s) => !SECTOR_OF.has(s)).slice(0, 40);
+  if (!missing.length) return;
+  sectorResolving = true;
+  try {
+    for (const s of missing) {
+      try {
+        const f = await yahoo.fundamentals(s);
+        SECTOR_OF.set(s, f?.sector || 'Other');
+      } catch {
+        SECTOR_OF.set(s, 'Other');
+      }
+    }
+    persistSectors();
+  } finally {
+    sectorResolving = false;
+  }
+}
+
+/** Sector allocation, concentration + trend insights for a valued portfolio. */
+function portfolioInsights(rows) {
+  const valued = rows.filter((h) => h.value != null && h.value > 0);
+  const total = valued.reduce((a, h) => a + h.value, 0);
+  if (!total) return { sectors: [], insights: [], best: null, worst: null };
+
+  const bySector = new Map();
+  for (const h of valued) {
+    const sec = SECTOR_OF.get(h.symbol) || 'Other';
+    bySector.set(sec, (bySector.get(sec) || 0) + h.value);
+  }
+  const sectors = [...bySector.entries()]
+    .map(([name, value]) => ({ name, value, pct: (value / total) * 100 }))
+    .sort((a, b) => b.value - a.value);
+
+  const sorted = [...valued].sort((a, b) => b.value - a.value);
+  // exclude corporate-action cost-basis artifacts (e.g. demerged shares at ~0 cost -> +40000%)
+  const withPnl = valued.filter((h) => h.pnlPct != null && h.pnlPct > -99.5 && h.pnlPct < 500);
+  const best = withPnl.length ? withPnl.reduce((a, b) => (b.pnlPct > a.pnlPct ? b : a)) : null;
+  const worst = withPnl.length ? withPnl.reduce((a, b) => (b.pnlPct < a.pnlPct ? b : a)) : null;
+
+  const insights = [];
+  if (sorted[0] && sorted[0].value / total > 0.25) {
+    insights.push({ level: 'warn', text: `${dispSymName(sorted[0])} alone is ${((sorted[0].value / total) * 100).toFixed(0)}% of the book — heavy single-stock concentration.` });
+  }
+  const top2 = (sorted[0]?.value || 0) + (sorted[1]?.value || 0);
+  if (sorted.length >= 2 && top2 / total > 0.5) {
+    insights.push({ level: 'warn', text: `Top 2 holdings are ${((top2 / total) * 100).toFixed(0)}% of the portfolio — highly concentrated.` });
+  }
+  const topRealSector = sectors.find((s) => s.name !== 'Other');
+  if (topRealSector && topRealSector.pct > 30) {
+    insights.push({ level: 'warn', text: `${topRealSector.pct.toFixed(0)}% is in ${topRealSector.name} — heavy exposure to one sector.` });
+  }
+  if (valued.length > 40) {
+    insights.push({ level: 'info', text: `${valued.length} holdings — quite spread out; returns will track the index closely (over-diversified).` });
+  } else if (valued.length > 0 && valued.length <= 5) {
+    insights.push({ level: 'info', text: `Just ${valued.length} holdings — concentrated book, higher risk and higher reward.` });
+  }
+  const belowCost = withPnl.filter((h) => h.pnlPct < 0).length;
+  if (withPnl.length && belowCost / withPnl.length > 0.5) {
+    insights.push({ level: 'warn', text: `${belowCost} of ${withPnl.length} holdings are below cost — the book is under water on breadth.` });
+  }
+  if (!insights.length) insights.push({ level: 'ok', text: 'Reasonably balanced — no single position or sector is dominating.' });
+
+  return {
+    sectors: sectors.slice(0, 10),
+    insights,
+    best: best ? { symbol: best.symbol, name: best.quoteName || best.name, pnlPct: best.pnlPct } : null,
+    worst: worst ? { symbol: worst.symbol, name: worst.quoteName || worst.name, pnlPct: worst.pnlPct } : null,
+  };
+}
+function dispSymName(h) {
+  return (h.symbol || '').replace(/\.(NS|BO)$/, '');
+}
 
 function valueHoldings(holdings, quotes) {
   let invested = 0, current = 0, dayPnl = 0, realized = 0;
@@ -382,6 +487,7 @@ app.get('/api/portfolios/all', wrap(async (req, res) => {
     ...agg.accounts.flatMap((a) => a.holdings.map((h) => h.symbol)),
   ])];
   const quotes = await getQuotes(symbols);
+  resolveSectors(symbols).catch(() => {});
   const valued = valueHoldings(agg.holdings, quotes);
   const accounts = agg.accounts.map((a) => {
     const v = valueHoldings(a.holdings, quotes);
@@ -394,6 +500,7 @@ app.get('/api/portfolios/all', wrap(async (req, res) => {
     accounts,
     transactions: [],
     summary: valued.summary,
+    insights: portfolioInsights(valued.rows),
   });
 }));
 
@@ -402,12 +509,14 @@ app.get('/api/portfolios/:id', wrap(async (req, res) => {
   const pf = portfolio.getPortfolio(req.params.id);
   const quotes = await getQuotes(pf.holdings.map((h) => h.symbol));
   const valued = valueHoldings(pf.holdings, quotes);
+  resolveSectors(pf.holdings.map((h) => h.symbol)).catch(() => {});
   res.json({
     id: pf.id,
     name: pf.name,
     holdings: valued.rows,
     transactions: pf.transactions,
     summary: valued.summary,
+    insights: portfolioInsights(valued.rows),
   });
 }));
 
@@ -470,7 +579,8 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
 });
 
-Promise.allSettled([portfolio.cloudRestore(), kite.cloudRestore(), watchlistCloudRestore()]).finally(() => {
+Promise.allSettled([portfolio.cloudRestore(), kite.cloudRestore(), watchlistCloudRestore(), alerts.cloudRestore()]).finally(() => {
+  alerts.startChecker(getQuotes, 60 * 1000);
   app.listen(PORT, () => {
     console.log(`StockDesk running at http://localhost:${PORT}`);
   });

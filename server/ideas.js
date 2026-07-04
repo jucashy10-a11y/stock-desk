@@ -151,6 +151,51 @@ async function build() {
     .sort((a, b) => b.rankScore - a.rankScore)
     .slice(0, 5);
 
+  // additional named scanners (reuse the already-computed research)
+  const scan = (label, subtitle, horizon, filter, rank) =>
+    evaluated
+      .filter(({ r }) => filter(r))
+      .map(({ c, r }) => ({ ...mkPick(c, r, horizon), _rank: rank ? rank(r) : mkPick(c, r, horizon).rankScore }))
+      .sort((a, b) => b._rank - a._rank)
+      .slice(0, 6);
+
+  const scanners = [
+    {
+      key: 'breakout', label: 'Breakout Stocks', subtitle: 'near 52-week highs with momentum', horizon: 'short',
+      picks: scan('breakout', '', 'short',
+        (r) => r.technicals.pctFromHigh != null && r.technicals.pctFromHigh > -4 && r.scores.technical >= 60,
+        (r) => -(r.technicals.pctFromHigh ?? -99)),
+    },
+    {
+      key: 'oversold', label: 'Oversold Bounce', subtitle: 'RSI low but long-term trend still up', horizon: 'short',
+      picks: scan('oversold', '', 'short',
+        (r) => r.technicals.rsi14 != null && r.technicals.rsi14 < 38 && r.technicals.sma200 != null && r.technicals.price > r.technicals.sma200,
+        (r) => -(r.technicals.rsi14 ?? 100)),
+    },
+    {
+      key: 'value', label: 'Value Picks', subtitle: 'cheap vs earnings & fair value', horizon: 'long',
+      picks: scan('value', '', 'long',
+        (r) => (r.scores.valuation ?? 0) >= 65 && (r.fundamentals?.pe ?? 99) < 22 && (r.fundamentals?.profitMargin ?? -1) > 0,
+        (r) => r.scores.valuation ?? 0),
+    },
+    {
+      key: 'momentum', label: 'Momentum Picks', subtitle: 'strongest 6-month performers still trending', horizon: 'short',
+      picks: scan('momentum', '', 'short',
+        (r) => (r.technicals.ret6m ?? -99) > 20 && r.scores.technical >= 60,
+        (r) => r.technicals.ret6m ?? 0),
+    },
+    {
+      key: 'quality', label: 'Long-Term Compounders', subtitle: 'high ROE, growing, profitable', horizon: 'long',
+      picks: longTerm,
+    },
+    {
+      key: 'dividend', label: 'High Dividend', subtitle: 'yield with a healthy business', horizon: 'long',
+      picks: scan('dividend', '', 'long',
+        (r) => (r.fundamentals?.divYield ?? 0) >= 2.5 && (r.scores.fundamental ?? 0) >= 55,
+        (r) => r.fundamentals?.divYield ?? 0),
+    },
+  ].filter((s) => s.picks.length);
+
   state = {
     status: 'ready',
     progress: state.total,
@@ -160,6 +205,7 @@ async function build() {
     results: {
       shortTerm,
       longTerm,
+      scanners,
       scanned: list.length,
       universe: symbols.length,
       minPotentialPct: POTENTIAL_MIN,
