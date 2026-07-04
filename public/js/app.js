@@ -1646,30 +1646,106 @@ async function renderPortfolio() {
       });
     }
 
+    const STOPWORDS = new Set(['EQ', 'NA', 'NRML', 'MIS', 'CNC', 'BUY', 'SELL', 'NET', 'TOTAL', 'QTY', 'AVG', 'VALUE', 'CASH', 'INFO', 'VIEW', 'CLIENT', 'ALL', 'WISE', 'FUT', 'OPT', 'PROD', 'ACC', 'LOT', 'MARK', 'MTM', 'DAY']);
+
+    function looksLikeSymbol(t) {
+      const s = (t || '').toUpperCase().replace(/[^A-Z0-9&-]/g, '');
+      return s.length >= 3 && s.length <= 18 && /[A-Z]/.test(s) && !/^\d+$/.test(s) && !STOPWORDS.has(s) ? s : null;
+    }
+
     function parseShotText(text) {
       const rows = [];
       for (const raw of text.split(/\n/)) {
         const tokens = raw.trim().split(/\s+/);
-        const idx = tokens.findIndex((t) => /^(NRML|MIS|CNC|NRM1|NRMI|NAML)$/i.test(t));
-        if (idx === -1 || idx + 1 >= tokens.length) continue;
-        const symbol = (tokens[idx + 1] || '').toUpperCase().replace(/[^A-Z0-9&-]/g, '');
-        if (!symbol || symbol.length < 2 || /^\d+$/.test(symbol)) continue;
-        const nums = tokens.slice(idx + 2).map((t) => parseFloat(t.replace(/,/g, ''))).filter((n) => isFinite(n) && n >= 0);
+        if (tokens.length < 3) continue;
+
+        // pass A: product-code anchor (NRML/MIS/CNC, tolerant to OCR garble like NRM1/NAML)
+        let symbol = null, numStart = -1;
+        const aIdx = tokens.findIndex((t) => /^[NMC][RAINC][MNSC]?[LI1]?$/i.test(t) && t.length >= 3);
+        if (aIdx >= 0 && aIdx + 1 < tokens.length) {
+          const s = looksLikeSymbol(tokens[aIdx + 1]);
+          if (s) { symbol = s; numStart = aIdx + 2; }
+        }
+
+        // pass B: math anchor — find (qty, value, avg) where qty×avg ≈ value
+        if (!symbol) {
+          const parsed = tokens.map((t) => ({ raw: t, num: parseFloat(t.replace(/,/g, '')) }));
+          for (let i = 0; i < parsed.length - 2; i++) {
+            const a = parsed[i].num, b = parsed[i + 1].num, c = parsed[i + 2].num;
+            if (!isFinite(a) || !isFinite(b) || !isFinite(c)) continue;
+            if (a < 1 || a > 1e7 || a !== Math.round(a) || b <= 0 || c <= 0) continue;
+            if (Math.abs(a * c - b) / b > 0.06) continue;
+            // symbol = nearest plausible token before the numbers
+            for (let j = i - 1; j >= 0; j--) {
+              const s = looksLikeSymbol(parsed[j].raw);
+              if (s) { symbol = s; break; }
+              if (isFinite(parsed[j].num)) break; // hit another number run — abandon
+            }
+            if (symbol) { rows.push({ symbol, type: 'BUY', qty: a, price: c }); }
+            break;
+          }
+          continue;
+        }
+
+        const nums = tokens.slice(numStart).map((t) => parseFloat(t.replace(/,/g, ''))).filter((n) => isFinite(n) && n >= 0);
         if (nums.length < 2) continue;
         const qty = Math.round(nums[0]);
-        if (!qty || qty <= 0) continue;
+        if (!qty || qty <= 0 || qty > 1e7) continue;
         let price = null;
         if (nums.length >= 3 && nums[2] > 0 && Math.abs(nums[2] * qty - nums[1]) / Math.max(nums[1], 1) < 0.25) price = nums[2];
         else if (nums[1] > 0) price = +(nums[1] / qty).toFixed(2);
         if (!price || price <= 0) continue;
         rows.push({ symbol, type: 'BUY', qty, price });
       }
-      return rows;
+      // dedupe identical detections
+      const seen = new Set();
+      return rows.filter((r) => {
+        const k = r.symbol + '|' + r.qty + '|' + r.price;
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      });
     }
 
-    function showPreview(rows) {
+    /** Upscale + grayscale + boost contrast — makes small screenshot text readable for OCR. */
+    async function preprocess(file) {
+      const img = await new Promise((res, rej) => {
+        const i = new Image();
+        i.onload = () => res(i);
+        i.onerror = () => rej(new Error('Could not read the image'));
+        i.src = URL.createObjectURL(file);
+      });
+      const scale = Math.max(1, Math.min(3, 2200 / img.width));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      const ctx = canvas.getContext('2d');
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.filter = 'grayscale(1) contrast(1.6)';
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(img.src);
+      return canvas;
+    }
+
+    function showPreview(rows, ocrText) {
       if (!rows.length) {
-        status.innerHTML = '<span class="down">Could not detect any trade rows. Try a sharper screenshot, or add manually with + Add Stock.</span>';
+        status.innerHTML = '<span class="down">Could not read trade rows from the image automatically.</span>';
+        $('#shot-preview', ov).innerHTML = `
+          ${ocrText ? `<details style="margin:10px 0"><summary class="muted" style="font-size:.76rem; cursor:pointer">Show what the OCR saw (for debugging)</summary>
+            <pre style="font-size:.64rem; background:#f4f6fa; padding:10px; border-radius:8px; overflow-x:auto; max-height:160px">${esc(ocrText)}</pre></details>` : ''}
+          <div class="muted" style="font-size:.78rem; margin:10px 0 6px"><b>Fallback:</b> type or paste the trades below — one per line, format: <code>SYMBOL QTY PRICE</code> (e.g. <code>TATSILV 500 22.45</code>)</div>
+          <textarea id="shot-manual" rows="4" style="width:100%; border:1px solid var(--border); border-radius:8px; padding:9px; font-family:var(--mono); font-size:.8rem" placeholder="BAJAJ-AUTO 1 9816&#10;TATSILV 500 22.45"></textarea>
+          <button class="btn primary sm" id="shot-parse-manual" style="margin-top:8px">Parse these lines</button>`;
+        $('#shot-parse-manual', ov).onclick = () => {
+          const manual = [];
+          for (const line of ($('#shot-manual', ov).value || '').split(/\n/)) {
+            const m = line.trim().match(/^([A-Za-z0-9&-]{2,20})[\s,]+(\d+)[\s,]+([\d.]+)$/);
+            if (m) manual.push({ symbol: m[1].toUpperCase(), type: 'BUY', qty: +m[2], price: +m[3] });
+          }
+          if (!manual.length) return toast('No valid lines — use: SYMBOL QTY PRICE', 'err');
+          showPreview(manual);
+        };
         return;
       }
       status.innerHTML = `<b class="up">Found ${rows.length} transaction${rows.length > 1 ? 's' : ''}</b> — check &amp; edit before saving:`;
@@ -1719,15 +1795,16 @@ async function renderPortfolio() {
     async function handleImage(file) {
       try {
         await ensureTesseract();
-        status.innerHTML = '<div class="spinner" style="margin:6px auto"></div><div style="text-align:center">Reading screenshot… <b id="shot-pct">0%</b></div>';
-        const { data } = await window.Tesseract.recognize(file, 'eng', {
+        status.innerHTML = '<div class="spinner" style="margin:6px auto"></div><div style="text-align:center">Enhancing image &amp; reading… <b id="shot-pct">0%</b></div>';
+        const canvas = await preprocess(file);
+        const { data } = await window.Tesseract.recognize(canvas, 'eng', {
           logger: (m) => {
             if (m.status === 'recognizing text' && $('#shot-pct', ov)) {
               $('#shot-pct', ov).textContent = Math.round(m.progress * 100) + '%';
             }
           },
         });
-        showPreview(parseShotText(data.text || ''));
+        showPreview(parseShotText(data.text || ''), data.text || '');
       } catch (e) {
         status.innerHTML = `<span class="down">${esc(e.message)}</span>`;
       }
