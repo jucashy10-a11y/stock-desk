@@ -1,5 +1,5 @@
 /* StockDesk service worker — cache static shell, never cache market data */
-const CACHE = 'stockdesk-v4';
+const CACHE = 'stockdesk-v5';
 const ASSETS = ['/', '/css/style.css', '/js/app.js', '/manifest.webmanifest', '/icon-180.png', '/icon-512.png'];
 
 self.addEventListener('install', (e) => {

@@ -1635,15 +1635,24 @@ async function renderPortfolio() {
     const status = $('#shot-status', ov);
 
     async function ensureTesseract() {
-      if (window.Tesseract) return;
-      status.innerHTML = 'Loading OCR engine (first time only)…';
-      await new Promise((res, rej) => {
-        const s = document.createElement('script');
-        s.src = 'https://unpkg.com/tesseract.js@5.1.1/dist/tesseract.min.js';
-        s.onload = res;
-        s.onerror = () => rej(new Error('Could not load the OCR library — check internet'));
-        document.head.appendChild(s);
+      if (window._sdOcrWorker) return window._sdOcrWorker;
+      if (!window.Tesseract) {
+        status.innerHTML = 'Loading OCR engine (first time only)…';
+        await new Promise((res, rej) => {
+          const s = document.createElement('script');
+          s.src = 'https://unpkg.com/tesseract.js@5.1.1/dist/tesseract.min.js';
+          s.onload = res;
+          s.onerror = () => rej(new Error('Could not load the OCR library — check internet'));
+          document.head.appendChild(s);
+        });
+      }
+      const worker = await window.Tesseract.createWorker('eng');
+      await worker.setParameters({
+        tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,-&() ',
+        preserve_interword_spaces: '1',
       });
+      window._sdOcrWorker = worker;
+      return worker;
     }
 
     const STOPWORDS = new Set(['EQ', 'NA', 'NRML', 'MIS', 'CNC', 'BUY', 'SELL', 'NET', 'TOTAL', 'QTY', 'AVG', 'VALUE', 'CASH', 'INFO', 'VIEW', 'CLIENT', 'ALL', 'WISE', 'FUT', 'OPT', 'PROD', 'ACC', 'LOT', 'MARK', 'MTM', 'DAY']);
@@ -1651,6 +1660,15 @@ async function renderPortfolio() {
     function looksLikeSymbol(t) {
       const s = (t || '').toUpperCase().replace(/[^A-Z0-9&-]/g, '');
       return s.length >= 3 && s.length <= 18 && /[A-Z]/.test(s) && !/^\d+$/.test(s) && !STOPWORDS.has(s) ? s : null;
+    }
+
+    /** OCR confuses letters/digits in numbers: S00 -> 500, O -> 0, I/l -> 1, B -> 8. */
+    function fixNumToken(t) {
+      if (!/^[-]?[\dSOIlB.,]+$/.test(t) || !/\d/.test(t)) return t;
+      return t.replace(/S/g, '5').replace(/O/g, '0').replace(/[Il]/g, '1').replace(/B/g, '8');
+    }
+    function toNum(t) {
+      return parseFloat(fixNumToken(t).replace(/,/g, ''));
     }
 
     function parseShotText(text) {
@@ -1668,26 +1686,26 @@ async function renderPortfolio() {
         }
 
         // pass B: math anchor — find (qty, value, avg) where qty×avg ≈ value
+        // (tolerates lost decimal points since a×c and b lose the same factor)
         if (!symbol) {
-          const parsed = tokens.map((t) => ({ raw: t, num: parseFloat(t.replace(/,/g, '')) }));
+          const parsed = tokens.map((t) => ({ raw: t, num: toNum(t) }));
           for (let i = 0; i < parsed.length - 2; i++) {
             const a = parsed[i].num, b = parsed[i + 1].num, c = parsed[i + 2].num;
             if (!isFinite(a) || !isFinite(b) || !isFinite(c)) continue;
             if (a < 1 || a > 1e7 || a !== Math.round(a) || b <= 0 || c <= 0) continue;
             if (Math.abs(a * c - b) / b > 0.06) continue;
-            // symbol = nearest plausible token before the numbers
             for (let j = i - 1; j >= 0; j--) {
               const s = looksLikeSymbol(parsed[j].raw);
               if (s) { symbol = s; break; }
-              if (isFinite(parsed[j].num)) break; // hit another number run — abandon
+              if (isFinite(parsed[j].num)) break;
             }
-            if (symbol) { rows.push({ symbol, type: 'BUY', qty: a, price: c }); }
+            if (symbol) { rows.push({ symbol, type: 'BUY', qty: a, price: c, value: b }); }
             break;
           }
           continue;
         }
 
-        const nums = tokens.slice(numStart).map((t) => parseFloat(t.replace(/,/g, ''))).filter((n) => isFinite(n) && n >= 0);
+        const nums = tokens.slice(numStart).map(toNum).filter((n) => isFinite(n) && n >= 0);
         if (nums.length < 2) continue;
         const qty = Math.round(nums[0]);
         if (!qty || qty <= 0 || qty > 1e7) continue;
@@ -1695,7 +1713,7 @@ async function renderPortfolio() {
         if (nums.length >= 3 && nums[2] > 0 && Math.abs(nums[2] * qty - nums[1]) / Math.max(nums[1], 1) < 0.25) price = nums[2];
         else if (nums[1] > 0) price = +(nums[1] / qty).toFixed(2);
         if (!price || price <= 0) continue;
-        rows.push({ symbol, type: 'BUY', qty, price });
+        rows.push({ symbol, type: 'BUY', qty, price, value: nums[1] });
       }
       // dedupe identical detections
       const seen = new Set();
@@ -1707,7 +1725,10 @@ async function renderPortfolio() {
       });
     }
 
-    /** Upscale + grayscale + boost contrast — makes small screenshot text readable for OCR. */
+    /**
+     * Upscale + grayscale + contrast-stretch via raw pixels
+     * (ctx.filter is silently ignored on iPhones — never rely on it).
+     */
     async function preprocess(file) {
       const img = await new Promise((res, rej) => {
         const i = new Image();
@@ -1715,17 +1736,76 @@ async function renderPortfolio() {
         i.onerror = () => rej(new Error('Could not read the image'));
         i.src = URL.createObjectURL(file);
       });
-      const scale = Math.max(1, Math.min(3, 2200 / img.width));
+      const scale = Math.max(1, Math.min(3, 2400 / img.width));
       const canvas = document.createElement('canvas');
       canvas.width = Math.round(img.width * scale);
       canvas.height = Math.round(img.height * scale);
       const ctx = canvas.getContext('2d');
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
-      ctx.filter = 'grayscale(1) contrast(1.6)';
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       URL.revokeObjectURL(img.src);
+      const im = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const d = im.data;
+      // grayscale + histogram
+      const hist = new Array(256).fill(0);
+      for (let i = 0; i < d.length; i += 4) {
+        const g = Math.round(0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]);
+        d[i] = d[i + 1] = d[i + 2] = g;
+        hist[g]++;
+      }
+      // contrast-stretch between 2nd and 98th percentile
+      const total = canvas.width * canvas.height;
+      let lo = 0, hi = 255, acc = 0;
+      for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc > total * 0.02) { lo = v; break; } }
+      acc = 0;
+      for (let v = 255; v >= 0; v--) { acc += hist[v]; if (acc > total * 0.02) { hi = v; break; } }
+      const range = Math.max(hi - lo, 1);
+      for (let i = 0; i < d.length; i += 4) {
+        const g = Math.max(0, Math.min(255, Math.round(((d[i] - lo) / range) * 255)));
+        d[i] = d[i + 1] = d[i + 2] = g;
+      }
+      ctx.putImageData(im, 0, 0);
       return canvas;
+    }
+
+    /**
+     * Sanity-check parsed rows against live market prices — OCR loses decimal
+     * points ("22.45" -> "2245"), so try /10 /100 /1000 scales (also derived
+     * from value÷qty) and keep whichever lands nearest the live price.
+     */
+    async function validateRows(rows) {
+      if (!rows.length) return rows;
+      const symMap = rows.map((r) => r.symbol + '.NS');
+      let quotes = {};
+      try {
+        quotes = await api('/api/quotes?symbols=' + encodeURIComponent([...new Set(symMap)].join(',')));
+      } catch { return rows; }
+      for (const r of rows) {
+        const q = quotes[r.symbol + '.NS'];
+        if (!q?.price) { r.ok = false; r.note = 'symbol not found — check spelling'; continue; }
+        const cands = [];
+        for (const base of [r.price, r.value && r.qty ? r.value / r.qty : null]) {
+          if (!base) continue;
+          for (const div of [1, 10, 100, 1000]) cands.push(base / div);
+        }
+        let best = r.price, bestErr = Infinity;
+        for (const c of cands) {
+          if (c <= 0) continue;
+          const err = Math.abs(Math.log(c / q.price));
+          if (err < bestErr) { bestErr = err; best = c; }
+        }
+        if (bestErr < Math.log(1.5)) { // within ±50% of live price
+          r.price = +best.toFixed(2);
+          r.ok = true;
+          r.ltp = q.price;
+        } else {
+          r.ok = false;
+          r.ltp = q.price;
+          r.note = `price looks off (live ₹${inr(q.price)})`;
+        }
+      }
+      return rows;
     }
 
     function showPreview(rows, ocrText) {
@@ -1744,20 +1824,25 @@ async function renderPortfolio() {
             if (m) manual.push({ symbol: m[1].toUpperCase(), type: 'BUY', qty: +m[2], price: +m[3] });
           }
           if (!manual.length) return toast('No valid lines — use: SYMBOL QTY PRICE', 'err');
-          showPreview(manual);
+          validateRows(manual).then((v) => showPreview(v));
         };
         return;
       }
       status.innerHTML = `<b class="up">Found ${rows.length} transaction${rows.length > 1 ? 's' : ''}</b> — check &amp; edit before saving:`;
+      const statusChip = (r) =>
+        r.ok === true ? `<span class="chg-pill up" title="live price ₹${inr(r.ltp)}">✓</span>`
+        : r.ok === false ? `<span class="chg-pill down" title="${esc(r.note || '')}">⚠</span>` : '';
       $('#shot-preview', ov).innerHTML = `
-        <table class="data" style="font-size:.8rem"><thead><tr><th style="text-align:left">Symbol</th><th>Type</th><th>Qty</th><th>Price ₹</th><th></th></tr></thead>
+        <table class="data" style="font-size:.8rem"><thead><tr><th style="text-align:left">Symbol</th><th>Type</th><th>Qty</th><th>Price ₹</th><th></th><th></th></tr></thead>
         <tbody>${rows.map((r, i) => `<tr>
           <td><input data-f="symbol" data-i="${i}" value="${esc(r.symbol)}" style="width:110px; padding:5px 7px; border:1px solid var(--border); border-radius:6px; font-weight:700"/></td>
           <td><select data-f="type" data-i="${i}" style="padding:5px; border:1px solid var(--border); border-radius:6px"><option ${r.type === 'BUY' ? 'selected' : ''}>BUY</option><option ${r.type === 'SELL' ? 'selected' : ''}>SELL</option></select></td>
           <td><input data-f="qty" data-i="${i}" type="number" value="${r.qty}" style="width:70px; padding:5px 7px; border:1px solid var(--border); border-radius:6px; text-align:right"/></td>
           <td><input data-f="price" data-i="${i}" type="number" step="0.01" value="${r.price}" style="width:90px; padding:5px 7px; border:1px solid var(--border); border-radius:6px; text-align:right"/></td>
+          <td>${statusChip(r)}</td>
           <td><button class="btn sm danger-ghost" data-drop="${i}">✕</button></td>
         </tr>`).join('')}</tbody></table>
+        <div class="muted" style="font-size:.7rem; margin-top:6px">✓ = price verified against live market · ⚠ = check the symbol/price (hover for why)</div>
         <button class="btn primary" id="shot-save" style="width:100%; margin-top:12px">Save to ${esc(pfList.find((p) => p.id === activePfId)?.name || 'portfolio')}</button>`;
       $$('#shot-preview [data-f]', ov).forEach((el) => {
         el.addEventListener('change', () => {
@@ -1765,7 +1850,11 @@ async function renderPortfolio() {
           if (el.dataset.f === 'qty') r.qty = parseFloat(el.value);
           else if (el.dataset.f === 'price') r.price = parseFloat(el.value);
           else if (el.dataset.f === 'type') r.type = el.value;
-          else r.symbol = el.value.toUpperCase().trim();
+          else {
+            r.symbol = el.value.toUpperCase().trim();
+            // re-check price scale + symbol against live market after an edit
+            validateRows([r]).then(() => showPreview(rows));
+          }
         });
       });
       $$('#shot-preview [data-drop]', ov).forEach((b) => {
@@ -1794,17 +1883,13 @@ async function renderPortfolio() {
 
     async function handleImage(file) {
       try {
-        await ensureTesseract();
-        status.innerHTML = '<div class="spinner" style="margin:6px auto"></div><div style="text-align:center">Enhancing image &amp; reading… <b id="shot-pct">0%</b></div>';
+        const worker = await ensureTesseract();
+        status.innerHTML = '<div class="spinner" style="margin:6px auto"></div><div style="text-align:center">Enhancing image &amp; reading…</div>';
         const canvas = await preprocess(file);
-        const { data } = await window.Tesseract.recognize(canvas, 'eng', {
-          logger: (m) => {
-            if (m.status === 'recognizing text' && $('#shot-pct', ov)) {
-              $('#shot-pct', ov).textContent = Math.round(m.progress * 100) + '%';
-            }
-          },
-        });
-        showPreview(parseShotText(data.text || ''), data.text || '');
+        const { data } = await worker.recognize(canvas);
+        status.innerHTML = 'Checking detected prices against live market…';
+        const rows = await validateRows(parseShotText(data.text || ''));
+        showPreview(rows, data.text || '');
       } catch (e) {
         status.innerHTML = `<span class="down">${esc(e.message)}</span>`;
       }
