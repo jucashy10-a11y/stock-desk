@@ -1797,9 +1797,9 @@ async function renderPortfolio() {
     const ov = modal('Import from Screenshot', `
       <p class="muted" style="font-size:.82rem; margin-bottom:12px">
         Upload the trade/positions screenshot you get on WhatsApp (XTS, Kite, etc.).
-        Text is read <b>on your device</b>, then you confirm each transaction before it's saved.
+        It's read <b>on the server</b> and you confirm each transaction before it's saved.
       </p>
-      <div class="dropzone" id="shot-dz">Drop the image here or <b>click to browse</b></div>
+      <div class="dropzone" id="shot-dz">Drop the image here or <b>tap to choose a photo</b></div>
       <input type="file" id="shot-file" accept="image/*" class="hidden" />
       <div id="shot-status" style="margin-top:12px; font-size:.82rem"></div>
       <div id="shot-preview" style="margin-top:8px"></div>`);
@@ -1807,156 +1807,43 @@ async function renderPortfolio() {
     const fileInput = $('#shot-file', ov);
     const status = $('#shot-status', ov);
 
-    async function ensureTesseract() {
-      if (window._sdOcrWorker) return window._sdOcrWorker;
-      if (!window.Tesseract) {
-        status.innerHTML = 'Loading OCR engine (first time only)…';
-        await new Promise((res, rej) => {
-          const s = document.createElement('script');
-          s.src = 'https://unpkg.com/tesseract.js@5.1.1/dist/tesseract.min.js';
-          s.onload = res;
-          s.onerror = () => rej(new Error('Could not load the OCR library — check internet'));
-          document.head.appendChild(s);
+    /** Read file to base64; downscale large images so upload stays small + safe on iOS. */
+    async function fileToBase64(file) {
+      if (file.size <= 3 * 1024 * 1024) {
+        return await new Promise((res, rej) => {
+          const r = new FileReader();
+          r.onload = () => res(r.result);
+          r.onerror = () => rej(new Error('Could not read the image'));
+          r.readAsDataURL(file);
         });
       }
-      const worker = await window.Tesseract.createWorker('eng');
-      await worker.setParameters({
-        tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,-&() ',
-        preserve_interword_spaces: '1',
-      });
-      window._sdOcrWorker = worker;
-      return worker;
-    }
-
-    const STOPWORDS = new Set(['EQ', 'NA', 'NRML', 'MIS', 'CNC', 'BUY', 'SELL', 'NET', 'TOTAL', 'QTY', 'AVG', 'VALUE', 'CASH', 'INFO', 'VIEW', 'CLIENT', 'ALL', 'WISE', 'FUT', 'OPT', 'PROD', 'ACC', 'LOT', 'MARK', 'MTM', 'DAY']);
-
-    function looksLikeSymbol(t) {
-      const s = (t || '').toUpperCase().replace(/[^A-Z0-9&-]/g, '');
-      return s.length >= 3 && s.length <= 18 && /[A-Z]/.test(s) && !/^\d+$/.test(s) && !STOPWORDS.has(s) ? s : null;
-    }
-
-    /** OCR confuses letters/digits in numbers: S00 -> 500, O -> 0, I/l -> 1, B -> 8. */
-    function fixNumToken(t) {
-      if (!/^[-]?[\dSOIlB.,]+$/.test(t) || !/\d/.test(t)) return t;
-      return t.replace(/S/g, '5').replace(/O/g, '0').replace(/[Il]/g, '1').replace(/B/g, '8');
-    }
-    function toNum(t) {
-      return parseFloat(fixNumToken(t).replace(/,/g, ''));
-    }
-
-    function parseShotText(text) {
-      const rows = [];
-      for (const raw of text.split(/\n/)) {
-        const tokens = raw.trim().split(/\s+/);
-        if (tokens.length < 3) continue;
-
-        // pass A: product-code anchor (NRML/MIS/CNC, tolerant to OCR garble like NRM1/NAML)
-        let symbol = null, numStart = -1;
-        const aIdx = tokens.findIndex((t) => /^[NMC][RAINC][MNSC]?[LI1]?$/i.test(t) && t.length >= 3);
-        if (aIdx >= 0 && aIdx + 1 < tokens.length) {
-          const s = looksLikeSymbol(tokens[aIdx + 1]);
-          if (s) { symbol = s; numStart = aIdx + 2; }
-        }
-
-        // pass B: math anchor — find (qty, value, avg) where qty×avg ≈ value
-        // (tolerates lost decimal points since a×c and b lose the same factor)
-        if (!symbol) {
-          const parsed = tokens.map((t) => ({ raw: t, num: toNum(t) }));
-          for (let i = 0; i < parsed.length - 2; i++) {
-            const a = parsed[i].num, b = parsed[i + 1].num, c = parsed[i + 2].num;
-            if (!isFinite(a) || !isFinite(b) || !isFinite(c)) continue;
-            if (a < 1 || a > 1e7 || a !== Math.round(a) || b <= 0 || c <= 0) continue;
-            if (Math.abs(a * c - b) / b > 0.06) continue;
-            for (let j = i - 1; j >= 0; j--) {
-              const s = looksLikeSymbol(parsed[j].raw);
-              if (s) { symbol = s; break; }
-              if (isFinite(parsed[j].num)) break;
-            }
-            if (symbol) { rows.push({ symbol, type: 'BUY', qty: a, price: c, value: b }); }
-            break;
-          }
-          continue;
-        }
-
-        const nums = tokens.slice(numStart).map(toNum).filter((n) => isFinite(n) && n >= 0);
-        if (nums.length < 2) continue;
-        const qty = Math.round(nums[0]);
-        if (!qty || qty <= 0 || qty > 1e7) continue;
-        let price = null;
-        if (nums.length >= 3 && nums[2] > 0 && Math.abs(nums[2] * qty - nums[1]) / Math.max(nums[1], 1) < 0.25) price = nums[2];
-        else if (nums[1] > 0) price = +(nums[1] / qty).toFixed(2);
-        if (!price || price <= 0) continue;
-        rows.push({ symbol, type: 'BUY', qty, price, value: nums[1] });
-      }
-      // dedupe identical detections
-      const seen = new Set();
-      return rows.filter((r) => {
-        const k = r.symbol + '|' + r.qty + '|' + r.price;
-        if (seen.has(k)) return false;
-        seen.add(k);
-        return true;
-      });
-    }
-
-    /**
-     * Upscale + grayscale + contrast-stretch via raw pixels
-     * (ctx.filter is silently ignored on iPhones — never rely on it).
-     */
-    async function preprocess(file) {
+      // big image: draw to a modest canvas (safe size for all phones) as JPEG
       const img = await new Promise((res, rej) => {
         const i = new Image();
         i.onload = () => res(i);
         i.onerror = () => rej(new Error('Could not read the image'));
         i.src = URL.createObjectURL(file);
       });
-      const scale = Math.max(1, Math.min(3, 2400 / img.width));
+      const scale = Math.min(1, 2000 / img.width);
       const canvas = document.createElement('canvas');
       canvas.width = Math.round(img.width * scale);
       canvas.height = Math.round(img.height * scale);
-      const ctx = canvas.getContext('2d');
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
       URL.revokeObjectURL(img.src);
-      const im = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const d = im.data;
-      // grayscale + histogram
-      const hist = new Array(256).fill(0);
-      for (let i = 0; i < d.length; i += 4) {
-        const g = Math.round(0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]);
-        d[i] = d[i + 1] = d[i + 2] = g;
-        hist[g]++;
-      }
-      // contrast-stretch between 2nd and 98th percentile
-      const total = canvas.width * canvas.height;
-      let lo = 0, hi = 255, acc = 0;
-      for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc > total * 0.02) { lo = v; break; } }
-      acc = 0;
-      for (let v = 255; v >= 0; v--) { acc += hist[v]; if (acc > total * 0.02) { hi = v; break; } }
-      const range = Math.max(hi - lo, 1);
-      for (let i = 0; i < d.length; i += 4) {
-        const g = Math.max(0, Math.min(255, Math.round(((d[i] - lo) / range) * 255)));
-        d[i] = d[i + 1] = d[i + 2] = g;
-      }
-      ctx.putImageData(im, 0, 0);
-      return canvas;
+      return canvas.toDataURL('image/jpeg', 0.9);
     }
 
-    /**
-     * Sanity-check parsed rows against live market prices — OCR loses decimal
-     * points ("22.45" -> "2245"), so try /10 /100 /1000 scales (also derived
-     * from value÷qty) and keep whichever lands nearest the live price.
-     */
+    /** Re-check a symbol/price against live market (for manual entries + edits). */
     async function validateRows(rows) {
       if (!rows.length) return rows;
-      const symMap = rows.map((r) => r.symbol + '.NS');
       let quotes = {};
       try {
-        quotes = await api('/api/quotes?symbols=' + encodeURIComponent([...new Set(symMap)].join(',')));
+        quotes = await api('/api/quotes?symbols=' + encodeURIComponent([...new Set(rows.map((r) => r.symbol + '.NS'))].join(',')));
       } catch { return rows; }
       for (const r of rows) {
         const q = quotes[r.symbol + '.NS'];
         if (!q?.price) { r.ok = false; r.note = 'symbol not found — check spelling'; continue; }
+        r.ltp = q.price;
         const cands = [];
         for (const base of [r.price, r.value && r.qty ? r.value / r.qty : null]) {
           if (!base) continue;
@@ -1968,15 +1855,8 @@ async function renderPortfolio() {
           const err = Math.abs(Math.log(c / q.price));
           if (err < bestErr) { bestErr = err; best = c; }
         }
-        if (bestErr < Math.log(1.5)) { // within ±50% of live price
-          r.price = +best.toFixed(2);
-          r.ok = true;
-          r.ltp = q.price;
-        } else {
-          r.ok = false;
-          r.ltp = q.price;
-          r.note = `price looks off (live ₹${inr(q.price)})`;
-        }
+        if (bestErr < Math.log(1.5)) { r.price = +best.toFixed(2); r.ok = true; }
+        else { r.ok = false; r.note = `price looks off (live ₹${inr(q.price)})`; }
       }
       return rows;
     }
@@ -2056,13 +1936,10 @@ async function renderPortfolio() {
 
     async function handleImage(file) {
       try {
-        const worker = await ensureTesseract();
-        status.innerHTML = '<div class="spinner" style="margin:6px auto"></div><div style="text-align:center">Enhancing image &amp; reading…</div>';
-        const canvas = await preprocess(file);
-        const { data } = await worker.recognize(canvas);
-        status.innerHTML = 'Checking detected prices against live market…';
-        const rows = await validateRows(parseShotText(data.text || ''));
-        showPreview(rows, data.text || '');
+        status.innerHTML = '<div class="spinner" style="margin:6px auto"></div><div style="text-align:center">Reading screenshot on the server…</div>';
+        const image = await fileToBase64(file);
+        const r = await api('/api/ocr/trades', { method: 'POST', body: JSON.stringify({ image }) });
+        showPreview(r.rows || [], r.text || '');
       } catch (e) {
         status.innerHTML = `<span class="down">${esc(e.message)}</span>`;
       }

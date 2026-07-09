@@ -13,6 +13,7 @@ const research = require('./research');
 const ideas = require('./ideas');
 const commodities = require('./commodities');
 const news = require('./news');
+const ocr = require('./ocr');
 const alerts = require('./alerts');
 const gistsync = require('./gistsync');
 const fs = require('fs');
@@ -22,7 +23,7 @@ const { INDICES, UNIVERSE } = require('./symbols');
 const app = express();
 const PORT = process.env.PORT || 3210;
 
-app.use(express.json({ limit: '5mb' }));
+app.use(express.json({ limit: '14mb' }));
 app.use(express.text({ type: 'text/csv', limit: '5mb' }));
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
@@ -537,6 +538,39 @@ app.post('/api/portfolios/:id/import', wrap(async (req, res) => {
   if (csv != null && typeof csv !== 'string') csv = String(csv);
   if (!csv) return res.status(400).json({ error: 'No CSV content' });
   res.json(await portfolio.importCSV(req.params.id, csv));
+}));
+
+/**
+ * OCR a broker screenshot server-side and return parsed trade rows for the
+ * user to confirm. Prices are decimal-restored against live quotes (OCR drops
+ * decimal points: "22.45" -> "2245"), so we try /1 /10 /100 /1000 scales.
+ */
+app.post('/api/ocr/trades', wrap(async (req, res) => {
+  const image = req.body?.image;
+  if (!image) return res.status(400).json({ error: 'No image' });
+  const { rows, text } = await ocr.extractTrades(image);
+  if (rows.length) {
+    const quotes = await getQuotes([...new Set(rows.map((r) => r.symbol + '.NS'))]);
+    for (const r of rows) {
+      const q = quotes[r.symbol + '.NS'];
+      if (!q?.price) { r.ok = false; r.note = 'symbol not found — check spelling'; continue; }
+      r.ltp = q.price;
+      const cands = [];
+      for (const base of [r.price, r.value && r.qty ? r.value / r.qty : null]) {
+        if (!base) continue;
+        for (const div of [1, 10, 100, 1000]) cands.push(base / div);
+      }
+      let best = r.price, bestErr = Infinity;
+      for (const c of cands) {
+        if (c <= 0) continue;
+        const err = Math.abs(Math.log(c / q.price));
+        if (err < bestErr) { bestErr = err; best = c; }
+      }
+      if (bestErr < Math.log(1.5)) { r.price = +best.toFixed(2); r.ok = true; }
+      else { r.ok = false; r.note = `price looks off (live ₹${q.price})`; }
+    }
+  }
+  res.json({ rows, text });
 }));
 
 // ---------- kite ----------
