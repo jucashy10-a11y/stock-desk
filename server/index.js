@@ -79,8 +79,9 @@ if (SELF_URL) {
 
 const wrap = (fn) => (req, res) =>
   Promise.resolve(fn(req, res)).catch((e) => {
-    console.error(`[api] ${req.method} ${req.originalUrl} -> ${e.message}`);
-    res.status(500).json({ error: e.message });
+    const notFound = /not found/i.test(e.message || '');
+    if (!notFound) console.error(`[api] ${req.method} ${req.originalUrl} -> ${e.message}`);
+    res.status(notFound ? 404 : 500).json({ error: e.message });
   });
 
 /**
