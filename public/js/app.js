@@ -196,7 +196,14 @@ async function refreshTicker() {
   });
 
   document.addEventListener('click', (e) => {
-    if (!e.target.closest('.searchbox')) hide();
+    if (!e.target.closest('.searchbox') && !e.target.closest('.search-toggle')) hide();
+  });
+
+  // phone: search collapses to an icon to save header space
+  $('#search-toggle')?.addEventListener('click', () => {
+    const h = document.querySelector('.topbar');
+    h.classList.toggle('search-open');
+    if (h.classList.contains('search-open')) setTimeout(() => input.focus(), 60);
   });
 })();
 
@@ -219,6 +226,7 @@ function route() {
   const page = parts[0] || 'dashboard';
   const navKey = routes[page] ? page : 'dashboard';
   $$('[data-nav]').forEach((a) => a.classList.toggle('active', a.dataset.nav === navKey));
+  document.querySelector('.topbar')?.classList.remove('search-open');
   setPoll(null);
   window.scrollTo(0, 0);
   (routes[page] || renderDashboard)(parts.slice(1).map(decodeURIComponent));
@@ -1358,6 +1366,7 @@ async function renderStock(params) {
 
 let activePfId = localStorage.getItem('activePf') || 'all';
 let pfSort = { key: 'value', dir: -1 };
+let mobHoldFilter = 'all';
 
 const PF_PALETTE = ['#2563eb', '#089c6c', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#f43f5e', '#0ea5e9', '#a16207', '#64748b'];
 
@@ -1379,6 +1388,7 @@ async function renderPortfolio() {
     </div>
     <div class="acct-pills" id="pf-pills"></div>
     <div class="pf-hero" id="pf-hero"><div class="spinner" style="border-top-color:#fff"></div></div>
+    <div id="pf-warn"></div>
     <div class="acct-cards" id="pf-accounts"></div>
     <div class="grid pf-mid" id="pf-mid"></div>
     <div class="card">
@@ -1432,6 +1442,10 @@ async function renderPortfolio() {
     try {
       pfData = await api('/api/portfolios/' + activePfId);
       drawHero();
+      const warn = (pfData.insights?.insights || []).find((i) => i.level === 'warn');
+      $('#pf-warn').innerHTML = warn
+        ? `<div class="pf-warn-strip">⚠ ${esc(warn.text)}</div>`
+        : '';
       drawAccounts();
       drawMid();
       draw();
@@ -1578,7 +1592,28 @@ async function renderPortfolio() {
 
       // phone: card list instead of a 10-column scroll table
       if (window.matchMedia('(max-width: 680px)').matches) {
-        $('#pf-body').innerHTML = `<div class="h-cards">${rows.map((h) => `
+        let mRows = rows;
+        if (mobHoldFilter === 'up') mRows = rows.filter((h) => (h.dayChangePct ?? 0) > 0);
+        else if (mobHoldFilter === 'down') mRows = rows.filter((h) => (h.dayChangePct ?? 0) < 0);
+        else if (mobHoldFilter === 'loss') mRows = rows.filter((h) => (h.pnl ?? 0) < 0);
+        const sortVal = `${pfSort.key}:${pfSort.dir}`;
+        const sortOpts = [
+          ['value:-1', 'Biggest first'],
+          ['dayChangePct:-1', "Today's best"],
+          ['dayChangePct:1', "Today's worst"],
+          ['pnlPct:-1', 'Most profit %'],
+          ['pnlPct:1', 'Most loss %'],
+          ['symbol:1', 'A – Z'],
+        ];
+        $('#pf-body').innerHTML = `
+        <div class="m-hold-ctrl">
+          <div class="seg">
+            ${[['all', 'All'], ['up', '▲ Up'], ['down', '▼ Down'], ['loss', 'In loss']]
+              .map(([k, l]) => `<button data-mf="${k}" class="${mobHoldFilter === k ? 'active' : ''}">${l}</button>`).join('')}
+          </div>
+          <select id="m-hold-sort">${sortOpts.map(([v, l]) => `<option value="${v}" ${v === sortVal ? 'selected' : ''}>${l}</option>`).join('')}</select>
+        </div>
+        <div class="h-cards">${mRows.map((h) => `
           <div class="h-card" onclick="location.hash='#/stock/${encodeURIComponent(h.symbol)}'">
             <div class="hc-r1">
               <span class="hc-sym">${esc(dispSym(h.symbol))}</span>
@@ -1596,6 +1631,15 @@ async function renderPortfolio() {
               <span class="num ${cls(h.pnl)}">${h.pnl != null ? money(h.pnl, true) : '—'} <small class="${cls(h.pnlPct)}">(${pct(h.pnlPct)})</small></span>
             </div>
           </div>`).join('')}</div>`;
+        $$('#pf-body [data-mf]').forEach((b) => {
+          b.onclick = () => { mobHoldFilter = b.dataset.mf; draw(); };
+        });
+        const ms = $('#m-hold-sort');
+        if (ms) ms.onchange = () => {
+          const [k, d] = ms.value.split(':');
+          pfSort = { key: k, dir: +d };
+          draw();
+        };
         return;
       }
 
