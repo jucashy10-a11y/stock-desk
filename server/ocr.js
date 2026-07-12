@@ -115,6 +115,12 @@ function parseScreenshotDate(text) {
   return `${String(month).padStart(2, '0')}/${String(day).padStart(2, '0')}/${year}`;
 }
 
+function parseExpectedCount(text) {
+  const m = text.match(/No\.?\s*(?:Of|0f)?\s*Pos(?:i)?t?ions?\s*[:.]?\s*(\d{1,4})/i)
+    || text.match(/No\.?\s*(?:Of|0f)?\s*Postions?\s*[:.]?\s*(\d{1,4})/i);
+  return m ? +m[1] : null;
+}
+
 /**
  * XTS positions rows carry BOTH sides:
  *   ... PROD SYMBOL  buyQty buyValue buyAvg  sellQty sellValue sellAvg  netQty ...
@@ -132,11 +138,11 @@ function sideRows(symbol, nums) {
   const sellQ = Math.round(nums[3] ?? 0);
   if (buyQ > 0 && buyQ <= 1e7 && (nums[1] ?? 0) > 0) {
     const p = px(buyQ, nums[1], nums[2] ?? 0);
-    if (p) out.push({ symbol, type: 'BUY', qty: buyQ, price: p, value: nums[1] });
+    if (p) out.push({ symbol, type: 'BUY', qty: buyQ, price: p, value: nums[1], avgRaw: nums[2] ?? null });
   }
   if (sellQ > 0 && sellQ <= 1e7 && (nums[4] ?? 0) > 0) {
     const p = px(sellQ, nums[4], nums[5] ?? 0);
-    if (p) out.push({ symbol, type: 'SELL', qty: sellQ, price: p, value: nums[4] });
+    if (p) out.push({ symbol, type: 'SELL', qty: sellQ, price: p, value: nums[4], avgRaw: nums[5] ?? null });
   }
   return out;
 }
@@ -264,7 +270,7 @@ async function extractTrades(base64) {
   if (rows1.length || !enhanced) {
     const date = parseScreenshotDate(text1);
     if (date) rows1.forEach((row) => { row.date = date; });
-    return { rows: rows1, text: text1 };
+    return { rows: rows1, text: text1, expectedCount: parseExpectedCount(text1) };
   }
 
   // pass 2: raw image (occasionally the original reads better)
@@ -274,7 +280,7 @@ async function extractTrades(base64) {
   const text = rows2.length ? text2 : text1;
   const date = parseScreenshotDate(text);
   if (date) rows.forEach((row) => { row.date = date; });
-  return { rows, text };
+  return { rows, text, expectedCount: parseExpectedCount(text) };
 }
 
-module.exports = { extractTrades, parseRows, parseScreenshotDate };
+module.exports = { extractTrades, parseRows, parseScreenshotDate, parseExpectedCount };

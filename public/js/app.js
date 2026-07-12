@@ -1905,7 +1905,7 @@ async function renderPortfolio() {
       return rows;
     }
 
-    function showPreview(rows, ocrText) {
+    function showPreview(rows, ocrText, expectedCount = null) {
       if (!rows.length) {
         status.innerHTML = '<span class="down">Could not read trade rows from the image automatically.</span>';
         $('#shot-preview', ov).innerHTML = `
@@ -1950,16 +1950,28 @@ async function renderPortfolio() {
           else {
             r.symbol = el.value.toUpperCase().trim();
             // re-check price scale + symbol against live market after an edit
-            validateRows([r]).then(() => showPreview(rows));
+            validateRows([r]).then(() => showPreview(rows, ocrText, expectedCount));
           }
         });
       });
       $$('#shot-preview [data-drop]', ov).forEach((b) => {
-        b.onclick = () => { rows.splice(+b.dataset.drop, 1); showPreview(rows); };
+        b.onclick = () => { rows.splice(+b.dataset.drop, 1); showPreview(rows, ocrText, expectedCount); };
       });
+      const countMismatch = expectedCount && rows.length !== expectedCount;
+      const invalidCount = rows.filter((r) => r.ok !== true).length;
+      if (countMismatch || invalidCount) {
+        status.innerHTML = countMismatch
+          ? `<b class="down">Blocked: XTS shows ${expectedCount} positions, but OCR found ${rows.length}.</b><br/>Upload a clearer full screenshot; nothing can be saved while a row is missing.`
+          : `<b class="down">Blocked: ${invalidCount} row${invalidCount === 1 ? '' : 's'} could not be verified.</b>`;
+        $('#shot-save', ov).disabled = true;
+        $('#shot-save', ov).textContent = countMismatch
+          ? `Cannot save — row count must be ${expectedCount}`
+          : `Cannot save — verify every row`;
+      }
       $('#shot-save', ov).onclick = async () => {
-        const valid = rows.filter((r) => r.symbol && r.qty > 0 && r.price > 0);
-        if (!valid.length) return toast('Nothing to save', 'err');
+        if (expectedCount && rows.length !== expectedCount) return toast('Cannot save: OCR count does not match XTS', 'err');
+        const valid = rows.filter((r) => r.ok === true && r.symbol && r.qty > 0 && r.price > 0);
+        if (valid.length !== rows.length) return toast('Cannot save: every row must be verified', 'err');
         $('#shot-save', ov).disabled = true;
         const today = new Date();
         const d = `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}/${today.getFullYear()}`;
@@ -1983,7 +1995,7 @@ async function renderPortfolio() {
         status.innerHTML = '<div class="spinner" style="margin:6px auto"></div><div style="text-align:center">Reading screenshot on the server…</div>';
         const image = await fileToBase64(file);
         const r = await api('/api/ocr/trades', { method: 'POST', body: JSON.stringify({ image }) });
-        showPreview(r.rows || [], r.text || '');
+        showPreview(r.rows || [], r.text || '', r.expectedCount || null);
       } catch (e) {
         status.innerHTML = `<span class="down">${esc(e.message)}</span>`;
       }

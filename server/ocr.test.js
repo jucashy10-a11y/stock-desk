@@ -1,5 +1,5 @@
 const assert = require('node:assert/strict');
-const { parseRows, parseScreenshotDate } = require('./ocr');
+const { parseRows, parseScreenshotDate, parseExpectedCount } = require('./ocr');
 
 const cases = [
   ['BUY RELIANCE 10 @ 1450.25', { symbol: 'RELIANCE', type: 'BUY', qty: 10, price: 1450.25 }],
@@ -22,4 +22,6 @@ assert.deepEqual(parseRows('TOTAL BUY VALUE 125000.00\nAccount balance 5000'), [
 assert.doesNotThrow(() => parseRows('CNC COCKERILL 0 0.00 0.00 10 92508.00'));
 assert.equal(parseScreenshotDate('XTS - 10-Jul-2026 16:29:41'), '07/10/2026');
 assert.equal(parseScreenshotDate('09-07-2026 03:33:43'), '07/09/2026');
+assert.equal(parseExpectedCount('No. Of Positions: 11'), 11);
+assert.equal(parseExpectedCount('No. OF Postions 22 Show Fiter'), 22);
 console.log(`OCR parser: ${cases.length} trade layouts passed`);

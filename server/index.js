@@ -549,10 +549,20 @@ app.post('/api/portfolios/:id/import', wrap(async (req, res) => {
 app.post('/api/ocr/trades', wrap(async (req, res) => {
   const image = req.body?.image;
   if (!image) return res.status(400).json({ error: 'No image' });
-  const { rows, text } = await ocr.extractTrades(image);
+  const { rows, text, expectedCount } = await ocr.extractTrades(image);
 
   const liveCheck = (r, q) => {
     r.ltp = q.price;
+    const nearestScale = (base) => {
+      if (!base || base <= 0) return null;
+      let scaled = null, error = Infinity;
+      for (const div of [1, 10, 100, 1000]) {
+        const value = base / div;
+        const e = Math.abs(Math.log(value / q.price));
+        if (e < error) { error = e; scaled = value; }
+      }
+      return { value: scaled, error };
+    };
     const cands = [];
     for (const base of [r.price, r.value && r.qty ? r.value / r.qty : null]) {
       if (!base) continue;
@@ -564,7 +574,15 @@ app.post('/api/ocr/trades', wrap(async (req, res) => {
       const err = Math.abs(Math.log(c / q.price));
       if (err < bestErr) { bestErr = err; best = c; }
     }
-    if (bestErr < Math.log(1.5)) { r.price = +best.toFixed(2); r.ok = true; }
+    const avgCheck = nearestScale(r.avgRaw);
+    const valueCheck = nearestScale(r.value && r.qty ? r.value / r.qty : null);
+    const columnsAgree = !avgCheck || !valueCheck
+      || Math.abs(avgCheck.value - valueCheck.value) / Math.max(avgCheck.value, valueCheck.value) <= 0.02;
+    if (!columnsAgree) {
+      r.ok = false;
+      r.note = `XTS Avg and Value / Qty disagree (${avgCheck.value.toFixed(2)} vs ${valueCheck.value.toFixed(2)})`;
+    }
+    else if (bestErr < Math.log(1.5)) { r.price = +best.toFixed(2); r.ok = true; }
     else { r.ok = false; r.note = `price looks off (live ₹${q.price})`; }
   };
 
@@ -596,7 +614,7 @@ app.post('/api/ocr/trades', wrap(async (req, res) => {
       }
     }
   }
-  res.json({ rows, text });
+  res.json({ rows, text, expectedCount });
 }));
 
 // ---------- kite ----------
