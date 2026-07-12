@@ -1963,7 +1963,7 @@ async function renderPortfolio() {
         $('#shot-save', ov).disabled = true;
         const today = new Date();
         const d = `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}/${today.getFullYear()}`;
-        const csv = valid.map((r) => `,${r.symbol},${d},${r.type === 'SELL' ? 'Sell' : 'Buy'},NSE,${r.qty},${r.price}`).join('\n');
+        const csv = valid.map((r) => `,${r.symbol},${r.date || d},${r.type === 'SELL' ? 'Sell' : 'Buy'},NSE,${r.qty},${r.price}`).join('\n');
         try {
           const res = await api(`/api/portfolios/${activePfId}/import`, { method: 'POST', body: JSON.stringify({ csv }) });
           toast(`Saved ${res.imported} transaction${res.imported > 1 ? 's' : ''} 🎉`, 'ok');

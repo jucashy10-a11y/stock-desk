@@ -8,8 +8,26 @@
  */
 
 const { createWorker } = require('tesseract.js');
+const sharp = require('sharp');
 
 let busy = false;
+
+/**
+ * Real phone screenshots have ~11px table text — far below what Tesseract
+ * reads reliably. Upscale + grayscale + contrast-normalize + sharpen first.
+ */
+async function enhance(buffer) {
+  const meta = await sharp(buffer).metadata();
+  const w = meta.width || 1600;
+  const scale = w < 1400 ? 2.6 : w < 2200 ? 2 : 1.5;
+  return sharp(buffer)
+    .resize({ width: Math.min(Math.round(w * scale), 4200), kernel: 'lanczos3' })
+    .grayscale()
+    .normalize()
+    .sharpen({ sigma: 1.1 })
+    .png()
+    .toBuffer();
+}
 
 async function ocrImage(buffer) {
   // one job at a time to bound memory
@@ -44,11 +62,57 @@ function looksLikeSymbol(t) {
   return s.length >= 3 && s.length <= 18 && /[A-Z]/.test(s) && !/^\d+$/.test(s) && !STOPWORDS.has(s) ? s : null;
 }
 function fixNumToken(t) {
+  if (typeof t !== 'string') return '';
   if (!/^[-]?[\dSOIlB.,]+$/.test(t) || !/\d/.test(t)) return t;
   return t.replace(/S/g, '5').replace(/O/g, '0').replace(/[Il]/g, '1').replace(/B/g, '8');
 }
 function toNum(t) {
   return parseFloat(fixNumToken(t).replace(/,/g, ''));
+}
+
+function cleanSymbol(t) {
+  return looksLikeSymbol((t || '').replace(/^(NSE|BSE)[:\-]?/i, '').replace(/\.(NS|BO)$/i, ''));
+}
+
+/**
+ * Parse the compact layouts used by order confirmations and trade books, e.g.
+ * "BUY RELIANCE 10 @ 1450.25", "SBIN SELL Qty 5 Avg 812.40", or
+ * "NSE:INFY B 2 1600".  Requiring an explicit side plus labelled/separator
+ * fields keeps headings and unrelated account figures from becoming trades.
+ */
+function parseExplicitRow(raw) {
+  const line = raw.replace(/[|:=@]/g, ' ').replace(/\s+/g, ' ').trim();
+  const patterns = [
+    /\b(BUY|SELL|BOUGHT|SOLD|B|S)\b\s+([A-Z][A-Z0-9&-]{1,19})(?:\s+(?:EQ|NSE|BSE))?\s+(?:QTY\s*)?([\d,]+)\s+(?:AT|AVG|PRICE|RATE\s*)?₹?\s*([\d,]+(?:\.\d+)?)/i,
+    /\b([A-Z][A-Z0-9&-]{1,19})\b(?:\s+(?:EQ|NSE|BSE))?\s+\b(BUY|SELL|BOUGHT|SOLD|B|S)\b\s+(?:QTY\s*)?([\d,]+)\s+(?:AT|AVG|PRICE|RATE\s*)?₹?\s*([\d,]+(?:\.\d+)?)/i,
+    /\b(BUY|SELL|BOUGHT|SOLD)\b.*?\b([A-Z][A-Z0-9&-]{1,19})\b.*?\bQTY\s*([\d,]+).*?\b(?:AVG|PRICE|RATE)\s*₹?\s*([\d,]+(?:\.\d+)?)/i,
+  ];
+  for (let i = 0; i < patterns.length; i++) {
+    const m = line.match(patterns[i]);
+    if (!m) continue;
+    const side = i === 1 ? m[2] : m[1];
+    const symbol = cleanSymbol(i === 1 ? m[1] : m[2]);
+    const qty = toNum(m[3]);
+    const price = toNum(m[4]);
+    if (!symbol || !Number.isInteger(qty) || qty <= 0 || qty > 1e7 || !isFinite(price) || price <= 0) continue;
+    return { symbol, type: /^(S|SELL|SOLD)$/i.test(side) ? 'SELL' : 'BUY', qty, price };
+  }
+  return null;
+}
+
+function parseScreenshotDate(text) {
+  const months = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+  let m = text.match(/\b(\d{1,2})[\s-](Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s-](20\d{2})\b/i);
+  let day, month, year;
+  if (m) {
+    day = +m[1]; month = months[m[2].slice(0, 3).toLowerCase()]; year = +m[3];
+  } else {
+    m = text.match(/\b(\d{1,2})[-/.](\d{1,2})[-/.](20\d{2})\b/);
+    if (!m) return null;
+    day = +m[1]; month = +m[2]; year = +m[3];
+  }
+  if (day < 1 || day > 31 || month < 1 || month > 12) return null;
+  return `${String(month).padStart(2, '0')}/${String(day).padStart(2, '0')}/${year}`;
 }
 
 /**
@@ -117,6 +181,11 @@ function repairMergedNumbers(tokens) {
 function parseRows(text) {
   const rows = [];
   for (const raw of text.split(/\n/)) {
+    const explicit = parseExplicitRow(raw);
+    if (explicit) {
+      rows.push(explicit);
+      continue;
+    }
     const tokens = repairMergedNumbers(raw.trim().split(/\s+/));
     if (tokens.length < 3) continue;
 
@@ -126,6 +195,14 @@ function parseRows(text) {
     if (aIdx >= 0 && aIdx + 1 < tokens.length) {
       const s = looksLikeSymbol(tokens[aIdx + 1]);
       if (s) { symbol = s; numStart = aIdx + 2; }
+    }
+    // pass A2: OCR often fuses product+symbol into one token ("NRMLVAML", "CNCIDEA")
+    if (!symbol) {
+      const mIdx = tokens.findIndex((t) => /^(NRML|CNC|MIS|NRM1|NAML)[A-Z0-9&-]{2,}$/i.test(t));
+      if (mIdx >= 0) {
+        const s = looksLikeSymbol(tokens[mIdx].replace(/^(NRML|CNC|MIS|NRM1|NAML)/i, ''));
+        if (s) { symbol = s; numStart = mIdx + 1; }
+      }
     }
 
     // pass B: math anchor (any qty × avg ≈ value triple), then walk back to the symbol
@@ -174,8 +251,30 @@ async function extractTrades(base64) {
   const buffer = Buffer.from(b64, 'base64');
   if (buffer.length < 100) throw new Error('Empty image');
   if (buffer.length > 12 * 1024 * 1024) throw new Error('Image too large');
-  const text = await ocrImage(buffer);
-  return { rows: parseRows(text), text };
+
+  // pass 1: enhanced image (upscaled + normalized) — much better on phone photos
+  let enhanced = null;
+  try {
+    enhanced = await enhance(buffer);
+  } catch (e) {
+    console.warn('[ocr] enhance failed, using raw image:', e.message);
+  }
+  const text1 = await ocrImage(enhanced || buffer);
+  const rows1 = parseRows(text1);
+  if (rows1.length || !enhanced) {
+    const date = parseScreenshotDate(text1);
+    if (date) rows1.forEach((row) => { row.date = date; });
+    return { rows: rows1, text: text1 };
+  }
+
+  // pass 2: raw image (occasionally the original reads better)
+  const text2 = await ocrImage(buffer);
+  const rows2 = parseRows(text2);
+  const rows = rows2.length ? rows2 : rows1;
+  const text = rows2.length ? text2 : text1;
+  const date = parseScreenshotDate(text);
+  if (date) rows.forEach((row) => { row.date = date; });
+  return { rows, text };
 }
 
-module.exports = { extractTrades };
+module.exports = { extractTrades, parseRows, parseScreenshotDate };
