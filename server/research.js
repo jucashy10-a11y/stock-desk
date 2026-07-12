@@ -111,6 +111,8 @@ function cagr(first, last, years) {
 }
 
 async function research(symbol) {
+  symbol = String(symbol || '').trim().toUpperCase();
+  if (/^[A-Z0-9&-]+$/.test(symbol)) symbol += '.NS';
   let [hist, quoteMap, fund, fin] = await Promise.all([
     yahoo.history(symbol, '2y', '1d'),
     yahoo.quotes([symbol]),
@@ -405,6 +407,11 @@ async function research(symbol) {
   if (t.pctFromHigh != null && t.pctFromHigh < -40) { riskPts += 6; risks.push(`Down ${Math.abs(t.pctFromHigh).toFixed(0)}% from its high — falling knives can keep falling`); }
   const riskScore = clamp(Math.round(riskPts), 5, 100);
   const riskLabel = riskScore >= 70 ? 'HIGH' : riskScore >= 45 ? 'MODERATE' : 'LOWER';
+  if (riskScore >= 70 && verdictColor === 'green') {
+    verdict = 'SPECULATIVE / HIGH RISK';
+    verdictColor = 'red';
+    plainVerdict = `The score looks positive, but risk is high (${riskScore}/100). Treat this as speculative, not a core recommendation.`;
+  }
 
   // ----- confidence: how much data backed this call -----
   let conf = 40;

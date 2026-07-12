@@ -121,6 +121,52 @@ function parseExpectedCount(text) {
   return m ? +m[1] : null;
 }
 
+function rowQuality(row) {
+  if (!row.qty || !row.value || !row.avgRaw) return 0;
+  const ratio = (row.qty * row.avgRaw) / row.value;
+  if (!isFinite(ratio) || ratio <= 0) return 0;
+  // OCR commonly removes a decimal point from an entire column. Treat powers
+  // of ten as equivalent, then score how well Qty * Avg reconciles to Value.
+  const power = Math.round(Math.log10(ratio));
+  return Math.max(0, 1 - Math.abs(Math.log10(ratio) - power) * 10);
+}
+
+function mergePassRows(...passes) {
+  const byTrade = new Map();
+  for (const rows of passes) {
+    for (const row of rows) {
+      const key = `${row.symbol}|${row.type}`;
+      const existing = byTrade.get(key);
+      if (!existing) {
+        byTrade.set(key, { ...row, readings: 1 });
+        continue;
+      }
+      const same = existing.qty === row.qty
+        && Math.abs(existing.price - row.price) / Math.max(existing.price, row.price, 1) < 0.005;
+      if (same) {
+        existing.readings++;
+      } else {
+        const existingQuality = rowQuality(existing);
+        const rowCandidateQuality = rowQuality(row);
+        if (Math.abs(existingQuality - rowCandidateQuality) >= 0.2) {
+          byTrade.set(key, rowCandidateQuality > existingQuality ? { ...row } : existing);
+          continue;
+        }
+        const chosen = rowCandidateQuality > existingQuality ? { ...row } : existing;
+        byTrade.set(key, {
+          ...chosen,
+          ambiguous: true,
+          alternatives: [
+            { qty: existing.qty, price: existing.price },
+            { qty: row.qty, price: row.price },
+          ],
+        });
+      }
+    }
+  }
+  return [...byTrade.values()];
+}
+
 /**
  * XTS positions rows carry BOTH sides:
  *   ... PROD SYMBOL  buyQty buyValue buyAvg  sellQty sellValue sellAvg  netQty ...
@@ -267,20 +313,18 @@ async function extractTrades(base64) {
   }
   const text1 = await ocrImage(enhanced || buffer);
   const rows1 = parseRows(text1);
-  if (rows1.length || !enhanced) {
-    const date = parseScreenshotDate(text1);
-    if (date) rows1.forEach((row) => { row.date = date; });
-    return { rows: rows1, text: text1, expectedCount: parseExpectedCount(text1) };
-  }
-
-  // pass 2: raw image (occasionally the original reads better)
-  const text2 = await ocrImage(buffer);
-  const rows2 = parseRows(text2);
-  const rows = rows2.length ? rows2 : rows1;
-  const text = rows2.length ? text2 : text1;
+  const expected1 = parseExpectedCount(text1);
+  // Run recovery when the primary pass is incomplete (or the footer count
+  // itself was unreadable). A complete primary pass is safer than merging in
+  // raw-pass false positives.
+  const needsRecovery = enhanced && (!expected1 || rows1.length !== expected1);
+  const text2 = needsRecovery ? await ocrImage(buffer) : '';
+  const rows2 = text2 ? parseRows(text2) : [];
+  const rows = expected1 && rows1.length === expected1 ? rows1 : mergePassRows(rows1, rows2);
+  const text = `${text1}\n${text2}`;
   const date = parseScreenshotDate(text);
   if (date) rows.forEach((row) => { row.date = date; });
   return { rows, text, expectedCount: parseExpectedCount(text) };
 }
 
-module.exports = { extractTrades, parseRows, parseScreenshotDate, parseExpectedCount };
+module.exports = { extractTrades, parseRows, parseScreenshotDate, parseExpectedCount, mergePassRows };

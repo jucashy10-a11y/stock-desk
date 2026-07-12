@@ -34,10 +34,13 @@ function mkPick(c, r, horizon) {
     dayChangePct: r.quote.changePct ?? null,
     verdict: r.verdict,
     verdictColor: r.verdictColor,
-    conviction: r.scores.composite >= 75 ? 'HIGH' : 'MODERATE',
+    conviction: r.scores.composite >= 75 && r.scores.confidence >= 75 && r.scores.risk < 45 ? 'HIGH' : 'MODERATE',
     composite: r.scores.composite,
     technical: r.scores.technical,
     fundamental: r.scores.fundamental,
+    confidence: r.scores.confidence,
+    risk: r.scores.risk,
+    riskLabel: r.scores.riskLabel,
     expected: proj.expected,
     expectedPct: proj.expectedPct,
     bull: proj.bull,
@@ -113,7 +116,10 @@ async function build() {
     return (
       r.scores.technical >= 65 &&
       r.scores.composite >= 60 &&
+      r.scores.confidence >= 60 &&
+      r.scores.risk <= 65 &&
       confirms >= 3 &&
+      r.shortTerm.expectedPct >= 3 &&
       r.shortTerm.bullPct >= POTENTIAL_MIN &&
       r.negatives.length <= 2
     );
@@ -132,9 +138,12 @@ async function build() {
     return (
       (r.scores.fundamental ?? 0) >= 70 &&
       r.scores.composite >= 55 &&
+      r.scores.confidence >= 65 &&
+      r.scores.risk <= 60 &&
       growth >= 10 &&
       (f.roe ?? 0) >= 12 &&
       profitable &&
+      r.longTerm.expectedPct >= 8 &&
       upside >= POTENTIAL_MIN
     );
   };

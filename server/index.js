@@ -553,6 +553,11 @@ app.post('/api/ocr/trades', wrap(async (req, res) => {
 
   const liveCheck = (r, q) => {
     r.ltp = q.price;
+    if (r.ambiguous) {
+      r.ok = false;
+      r.note = 'OCR passes disagree on quantity or average; review this row manually';
+      return;
+    }
     const nearestScale = (base) => {
       if (!base || base <= 0) return null;
       let scaled = null, error = Infinity;
