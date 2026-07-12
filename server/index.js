@@ -550,25 +550,50 @@ app.post('/api/ocr/trades', wrap(async (req, res) => {
   const image = req.body?.image;
   if (!image) return res.status(400).json({ error: 'No image' });
   const { rows, text } = await ocr.extractTrades(image);
+
+  const liveCheck = (r, q) => {
+    r.ltp = q.price;
+    const cands = [];
+    for (const base of [r.price, r.value && r.qty ? r.value / r.qty : null]) {
+      if (!base) continue;
+      for (const div of [1, 10, 100, 1000]) cands.push(base / div);
+    }
+    let best = r.price, bestErr = Infinity;
+    for (const c of cands) {
+      if (c <= 0) continue;
+      const err = Math.abs(Math.log(c / q.price));
+      if (err < bestErr) { bestErr = err; best = c; }
+    }
+    if (bestErr < Math.log(1.5)) { r.price = +best.toFixed(2); r.ok = true; }
+    else { r.ok = false; r.note = `price looks off (live ₹${q.price})`; }
+  };
+
   if (rows.length) {
     const quotes = await getQuotes([...new Set(rows.map((r) => r.symbol + '.NS'))]);
+    const misses = [];
     for (const r of rows) {
       const q = quotes[r.symbol + '.NS'];
-      if (!q?.price) { r.ok = false; r.note = 'symbol not found — check spelling'; continue; }
-      r.ltp = q.price;
-      const cands = [];
-      for (const base of [r.price, r.value && r.qty ? r.value / r.qty : null]) {
-        if (!base) continue;
-        for (const div of [1, 10, 100, 1000]) cands.push(base / div);
+      if (q?.price) liveCheck(r, q);
+      else misses.push(r);
+    }
+    // OCR drops letters ("COCKERILL" -> "COCKERIL") — repair via symbol search
+    for (const r of misses) {
+      try {
+        const found = await yahoo.search(r.symbol);
+        const cand = found.find((x) => /\.(NS|BO)$/.test(x.symbol));
+        if (cand) {
+          const fixed = cand.symbol.replace(/\.(NS|BO)$/, '');
+          if (fixed !== r.symbol) { r.note = `auto-corrected from "${r.symbol}"`; r.symbol = fixed; }
+        }
+      } catch { /* keep original */ }
+    }
+    if (misses.length) {
+      const q2 = await getQuotes([...new Set(misses.map((r) => r.symbol + '.NS'))]);
+      for (const r of misses) {
+        const q = q2[r.symbol + '.NS'];
+        if (q?.price) { const note = r.note; liveCheck(r, q); if (r.ok && note) r.note = note; }
+        else { r.ok = false; r.note = 'symbol not found — check spelling'; }
       }
-      let best = r.price, bestErr = Infinity;
-      for (const c of cands) {
-        if (c <= 0) continue;
-        const err = Math.abs(Math.log(c / q.price));
-        if (err < bestErr) { bestErr = err; best = c; }
-      }
-      if (bestErr < Math.log(1.5)) { r.price = +best.toFixed(2); r.ok = true; }
-      else { r.ok = false; r.note = `price looks off (live ₹${q.price})`; }
     }
   }
   res.json({ rows, text });

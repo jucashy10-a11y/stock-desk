@@ -51,52 +51,114 @@ function toNum(t) {
   return parseFloat(fixNumToken(t).replace(/,/g, ''));
 }
 
+/**
+ * XTS positions rows carry BOTH sides:
+ *   ... PROD SYMBOL  buyQty buyValue buyAvg  sellQty sellValue sellAvg  netQty ...
+ * A pure SELL shows "0 0.00 0.00" on the buy side — the old parser read only
+ * the buy side and dropped sell rows entirely. Emit a row per non-zero side.
+ */
+function sideRows(symbol, nums) {
+  const out = [];
+  const px = (q, v, a) => {
+    if (a > 0 && q > 0 && Math.abs(a * q - v) / Math.max(v, 1) < 0.25) return a;
+    if (v > 0 && q > 0) return +(v / q).toFixed(2);
+    return null;
+  };
+  const buyQ = Math.round(nums[0] ?? 0);
+  const sellQ = Math.round(nums[3] ?? 0);
+  if (buyQ > 0 && buyQ <= 1e7 && (nums[1] ?? 0) > 0) {
+    const p = px(buyQ, nums[1], nums[2] ?? 0);
+    if (p) out.push({ symbol, type: 'BUY', qty: buyQ, price: p, value: nums[1] });
+  }
+  if (sellQ > 0 && sellQ <= 1e7 && (nums[4] ?? 0) > 0) {
+    const p = px(sellQ, nums[4], nums[5] ?? 0);
+    if (p) out.push({ symbol, type: 'SELL', qty: sellQ, price: p, value: nums[4] });
+  }
+  return out;
+}
+
+/**
+ * OCR sometimes merges adjacent columns into one token
+ * ("50000 234110.35" -> "5000023411035"). If a huge numeric token is followed
+ * by a plausible avg, find the split where qty × avg ≈ value up to a power of
+ * ten (decimal points are often lost too, shifting both sides equally).
+ */
+function repairMergedNumbers(tokens) {
+  const out = [];
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    const n = toNum(t);
+    const digits = fixNumToken(t).replace(/[^\d]/g, '');
+    if (isFinite(n) && n > 1e8 && digits.length >= 9 && !t.includes('.')) {
+      const c = toNum(tokens[i + 1]);
+      if (isFinite(c) && c > 0) {
+        let best = null;
+        for (let s = 1; s < digits.length; s++) {
+          const L = parseInt(digits.slice(0, s), 10);
+          const R = parseInt(digits.slice(s), 10);
+          if (!L || !R || L > 1e7) continue;
+          const k = Math.log10((L * c) / R);
+          const kr = Math.round(k);
+          if (Math.abs(kr) <= 3 && Math.abs(k - kr) < Math.log10(1.06)) {
+            if (!best || Math.abs(kr) < Math.abs(best.kr)) best = { L, R, kr };
+          }
+        }
+        if (best) {
+          out.push(String(best.L), String(best.R));
+          continue;
+        }
+      }
+    }
+    out.push(t);
+  }
+  return out;
+}
+
 function parseRows(text) {
   const rows = [];
   for (const raw of text.split(/\n/)) {
-    const tokens = raw.trim().split(/\s+/);
+    const tokens = repairMergedNumbers(raw.trim().split(/\s+/));
     if (tokens.length < 3) continue;
 
     let symbol = null, numStart = -1;
+    // pass A: product-code anchor (NRML/CNC/MIS + OCR garble variants), symbol right after
     const aIdx = tokens.findIndex((t) => /^[NMC][RAINC][MNSC]?[LI1]?$/i.test(t) && t.length >= 3);
     if (aIdx >= 0 && aIdx + 1 < tokens.length) {
       const s = looksLikeSymbol(tokens[aIdx + 1]);
       if (s) { symbol = s; numStart = aIdx + 2; }
     }
 
+    // pass B: math anchor (any qty × avg ≈ value triple), then walk back to the symbol
     if (!symbol) {
-      // math anchor: qty × avg ≈ value
       const parsed = tokens.map((t) => ({ raw: t, num: toNum(t) }));
-      for (let i = 0; i < parsed.length - 2; i++) {
+      for (let i = 0; i < parsed.length - 2 && !symbol; i++) {
         const a = parsed[i].num, b = parsed[i + 1].num, c = parsed[i + 2].num;
         if (!isFinite(a) || !isFinite(b) || !isFinite(c)) continue;
         if (a < 1 || a > 1e7 || a !== Math.round(a) || b <= 0 || c <= 0) continue;
         if (Math.abs(a * c - b) / b > 0.06) continue;
         for (let j = i - 1; j >= 0; j--) {
           const s = looksLikeSymbol(parsed[j].raw);
-          if (s) { symbol = s; break; }
-          if (isFinite(parsed[j].num)) break;
+          if (s) {
+            symbol = s;
+            // numbers begin right after the symbol token (may include leading zeros = buy side)
+            numStart = j + 1;
+            break;
+          }
+          if (isFinite(parsed[j].num) && parsed[j].num !== 0) break;
         }
-        if (symbol) rows.push({ symbol, type: 'BUY', qty: a, price: c, value: b });
-        break;
       }
-      continue;
+      if (!symbol) continue;
     }
 
+    // keep zeros (they mark an empty buy/sell side); drop negatives (net qty/value columns)
     const nums = tokens.slice(numStart).map(toNum).filter((n) => isFinite(n) && n >= 0);
     if (nums.length < 2) continue;
-    const qty = Math.round(nums[0]);
-    if (!qty || qty <= 0 || qty > 1e7) continue;
-    let price = null;
-    if (nums.length >= 3 && nums[2] > 0 && Math.abs(nums[2] * qty - nums[1]) / Math.max(nums[1], 1) < 0.25) price = nums[2];
-    else if (nums[1] > 0) price = +(nums[1] / qty).toFixed(2);
-    if (!price || price <= 0) continue;
-    rows.push({ symbol, type: 'BUY', qty, price, value: nums[1] });
+    rows.push(...sideRows(symbol, nums));
   }
   // dedupe
   const seen = new Set();
   return rows.filter((r) => {
-    const k = r.symbol + '|' + r.qty + '|' + r.price;
+    const k = r.symbol + '|' + r.type + '|' + r.qty + '|' + r.price;
     if (seen.has(k)) return false;
     seen.add(k);
     return true;
