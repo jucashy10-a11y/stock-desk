@@ -599,8 +599,39 @@ app.post('/api/ocr/trades', wrap(async (req, res) => {
       if (q?.price) liveCheck(r, q);
       else misses.push(r);
     }
-    // OCR drops letters ("COCKERILL" -> "COCKERIL") — repair via symbol search
+    // OCR mangles letters ("COCKERILL"->"COCKERIL", "IDEA"->"IDES") — repair:
+    // 1) fuzzy match against symbols we know (user's holdings + universe), 2) search
+    const editDist = (a, b) => {
+      if (Math.abs(a.length - b.length) > 2) return 9;
+      const m = a.length, n = b.length;
+      let prev = Array.from({ length: n + 1 }, (_, j) => j);
+      for (let i = 1; i <= m; i++) {
+        const cur = [i];
+        for (let j = 1; j <= n; j++) {
+          cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+        }
+        prev = cur;
+      }
+      return prev[n];
+    };
+    const fuzzyKnown = (sym) => {
+      let best = null, bestD = 9;
+      for (const key of NAME_MAP.keys()) {
+        const cand = key.replace(/\.(NS|BO)$/, '');
+        if (cand === sym) return null;
+        const d = editDist(sym, cand);
+        if (d < bestD) { bestD = d; best = cand; }
+      }
+      const maxD = sym.length >= 6 ? 2 : 1;
+      return bestD <= maxD ? best : null;
+    };
     for (const r of misses) {
+      const local = fuzzyKnown(r.symbol);
+      if (local) {
+        r.note = `auto-corrected from "${r.symbol}"`;
+        r.symbol = local;
+        continue;
+      }
       try {
         const found = await yahoo.search(r.symbol);
         const cand = found.find((x) => /\.(NS|BO)$/.test(x.symbol));

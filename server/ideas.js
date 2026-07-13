@@ -12,6 +12,7 @@
 
 const research = require('./research');
 const yahoo = require('./yahoo');
+const kite = require('./kite');
 const { UNIVERSE } = require('./symbols');
 
 let state = { status: 'idle', progress: 0, total: 0, results: null, builtAt: 0, error: null };
@@ -60,45 +61,94 @@ function mkPick(c, r, horizon) {
   };
 }
 
+function mkTwoXPick(c, r) {
+  const x = r.twoX;
+  return {
+    symbol: c.symbol,
+    name: c.name,
+    sector: c.sector,
+    price: r.quote.price,
+    dayChangePct: r.quote.changePct ?? null,
+    verdict: '2X POTENTIAL / 4Y',
+    verdictColor: 'amber',
+    conviction: x.score >= 85 && r.scores.confidence >= 80 && r.scores.risk < 45 ? 'HIGH' : 'MODERATE',
+    composite: x.score,
+    technical: r.scores.technical,
+    fundamental: r.scores.fundamental,
+    confidence: r.scores.confidence,
+    risk: r.scores.risk,
+    riskLabel: r.scores.riskLabel,
+    expected: x.baseTarget,
+    expectedPct: x.baseUpsidePct,
+    bull: x.bullTarget,
+    bullPct: x.bullUpsidePct,
+    bear: x.bearTarget,
+    bearPct: x.bearUpsidePct,
+    potentialPct: x.baseUpsidePct,
+    requiredCagr: x.requiredCagr,
+    growthAssumption: x.growthAssumption,
+    exitPE: x.exitPE,
+    twoX: true,
+    reasons: x.checks.slice(0, 4),
+    topRisk: r.whatCanGoWrong?.[0] || r.negatives[0] || null,
+    rankScore: x.score + Math.min(x.baseUpsidePct || 0, 150) * 0.15 - r.scores.risk * 0.1,
+  };
+}
+
 async function build() {
   const symbols = UNIVERSE.map((u) => u.symbol);
   // Yahoo here on purpose: the screen needs 52-week range + P/E, which
   // Kite's quote feed doesn't carry. Live prices still come via research().
-  const quotes = await yahoo.quotes(symbols);
+  const [quotes, kiteQuotes] = await Promise.all([
+    yahoo.quotes(symbols),
+    kite.status().connected ? kite.quotes(symbols).catch(() => ({})) : Promise.resolve({}),
+  ]);
 
   // ---- stage 1: cheap screen ----
   const cands = [];
   for (const u of UNIVERSE) {
     const q = quotes[u.symbol];
+    const live = kiteQuotes[u.symbol];
     if (!q?.price || !q.yearHigh || !q.yearLow || q.yearHigh <= q.yearLow) continue;
-    const posIn52w = (q.price - q.yearLow) / (q.yearHigh - q.yearLow); // 0 = at low, 1 = at high
+    const price = live?.price || q.price;
+    const posIn52w = (price - q.yearLow) / (q.yearHigh - q.yearLow); // 0 = at low, 1 = at high
     cands.push({
       symbol: u.symbol,
       name: u.name,
       sector: u.sector,
+      liveQuote: live || null,
+      marketCap: q.marketCap ?? null,
       momScore: posIn52w + (q.changePct > 0 ? 0.05 : 0),
       valScore: (q.pe > 0 && q.pe < 25 ? 1 : 0) + (1 - posIn52w) * 0.6,
     });
   }
   const byMom = [...cands].sort((a, b) => b.momScore - a.momScore).slice(0, 28);
   const byVal = [...cands].sort((a, b) => b.valScore - a.valScore).slice(0, 22);
+  // Include smaller liquid names from the curated universe; 2x candidates
+  // are often missed by large-cap momentum/value-only preselection.
+  const byEmerging = [...cands]
+    .filter((c) => c.marketCap != null && c.marketCap >= 500e7)
+    .sort((a, b) => a.marketCap - b.marketCap)
+    .slice(0, 32);
   const unique = new Map();
-  for (const c of [...byMom, ...byVal]) unique.set(c.symbol, c);
+  for (const c of [...byMom, ...byVal, ...byEmerging]) unique.set(c.symbol, c);
   const list = [...unique.values()];
   state.total = list.length;
   state.progress = 0;
 
   // ---- stage 2: full research on survivors ----
   const evaluated = [];
+  let failed = 0;
   const CONC = 5;
   for (let i = 0; i < list.length; i += CONC) {
     await Promise.all(
       list.slice(i, i + CONC).map(async (c) => {
         try {
-          const r = await research.research(c.symbol);
+          const r = await research.research(c.symbol, { sector: c.sector, liveQuote: c.liveQuote });
           evaluated.push({ c, r });
         } catch {
           /* skip symbols with data issues */
+          failed++;
         }
         state.progress++;
       })
@@ -160,15 +210,25 @@ async function build() {
     .sort((a, b) => b.rankScore - a.rankScore)
     .slice(0, 5);
 
+  const twoX = evaluated
+    .filter(({ r }) => r.twoX?.clearsTwoX && r.scores.confidence >= 75 && r.scores.risk <= 60)
+    .map(({ c, r }) => mkTwoXPick(c, r))
+    .sort((a, b) => b.rankScore - a.rankScore)
+    .slice(0, 8);
+
   // additional named scanners (reuse the already-computed research)
   const scan = (label, subtitle, horizon, filter, rank) =>
     evaluated
-      .filter(({ r }) => filter(r))
+      .filter(({ r }) => r.scores.confidence >= 55 && r.scores.risk <= 70 && filter(r))
       .map(({ c, r }) => ({ ...mkPick(c, r, horizon), _rank: rank ? rank(r) : mkPick(c, r, horizon).rankScore }))
       .sort((a, b) => b._rank - a._rank)
       .slice(0, 6);
 
   const scanners = [
+    {
+      key: 'two-x', label: '2X Research Watchlist', subtitle: 'strict base-case candidates over 4 years; never guaranteed', horizon: 'twoX',
+      picks: twoX,
+    },
     {
       key: 'breakout', label: 'Breakout Stocks', subtitle: 'near 52-week highs with momentum', horizon: 'short',
       picks: scan('breakout', '', 'short',
@@ -203,7 +263,7 @@ async function build() {
         (r) => (r.fundamentals?.divYield ?? 0) >= 2.5 && (r.scores.fundamental ?? 0) >= 55,
         (r) => r.fundamentals?.divYield ?? 0),
     },
-  ].filter((s) => s.picks.length);
+  ].filter((s) => s.key === 'two-x' || s.picks.length);
 
   state = {
     status: 'ready',
@@ -214,12 +274,16 @@ async function build() {
     results: {
       shortTerm,
       longTerm,
+      twoX,
       scanners,
       scanned: list.length,
+      researched: evaluated.length,
+      failed,
       universe: symbols.length,
       minPotentialPct: POTENTIAL_MIN,
+      liveSource: Object.keys(kiteQuotes).length ? 'kite' : 'yahoo',
       disclaimer:
-        'Algorithmic screen based on momentum, volatility, fundamentals and analyst data. "+25% potential" is a modelled bull-case/valuation-gap scenario, NOT a promised return. Equities can and do fall. This is not investment advice — do your own diligence or consult a SEBI-registered advisor.',
+        'Algorithmic research, not a tip or guaranteed return. A 2X candidate must clear the four-year base case using growth, cash flow, leverage, ownership, liquidity and conservative valuation gates; the assumptions can still fail. Do your own diligence or consult a SEBI-registered adviser.',
     },
   };
 }

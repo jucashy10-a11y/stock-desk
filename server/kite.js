@@ -158,7 +158,7 @@ async function kiteGet(endpoint) {
 
 /** Convert a Yahoo-style symbol (RELIANCE.NS / 500325.BO) to a Kite instrument string. */
 function toKiteInstrument(sym) {
-  if (sym.endsWith('.NS')) return 'NSE:' + sym.slice(0, -3).replace(/-/g, '');
+  if (sym.endsWith('.NS')) return 'NSE:' + sym.slice(0, -3);
   if (sym.endsWith('.BO')) return 'BSE:' + sym.slice(0, -3);
   if (sym.startsWith('^')) return null; // indices handled by Yahoo
   return null;
@@ -174,8 +174,8 @@ async function quotes(symbols) {
   if (!mapping.size) return {};
   const out = {};
   const instruments = [...mapping.keys()];
-  for (let i = 0; i < instruments.length; i += 250) {
-    const batch = instruments.slice(i, i + 250);
+  for (let i = 0; i < instruments.length; i += 500) {
+    const batch = instruments.slice(i, i + 500);
     const qs = batch.map((x) => 'i=' + encodeURIComponent(x)).join('&');
     const data = await kiteGet('/quote?' + qs);
     for (const [instr, q] of Object.entries(data)) {
@@ -197,7 +197,7 @@ async function quotes(symbols) {
         volume: q.volume ?? null,
         upperCircuit: q.upper_circuit_limit,
         lowerCircuit: q.lower_circuit_limit,
-        oi: q.oi ?? null,
+        oi: q.open_interest ?? q.oi ?? null,
         time: q.last_trade_time ? new Date(q.last_trade_time).getTime() : Date.now(),
         source: 'kite',
       };
@@ -331,7 +331,7 @@ async function mcxMiniQuotes() {
       dayHigh: q.ohlc?.high ?? null,
       dayLow: q.ohlc?.low ?? null,
       volume: q.volume ?? null,
-      oi: q.oi ?? null,
+      oi: q.open_interest ?? q.oi ?? null,
       time: q.last_trade_time ? new Date(q.last_trade_time).getTime() : Date.now(),
     };
   };

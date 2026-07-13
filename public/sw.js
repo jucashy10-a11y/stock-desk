@@ -1,5 +1,5 @@
 /* StockDesk service worker — network-first shell so updates show immediately */
-const CACHE = 'stockdesk-v11';
+const CACHE = 'stockdesk-v12';
 const ASSETS = ['/', '/css/style.css', '/js/app.js', '/manifest.webmanifest', '/icon-180.png', '/icon-512.png'];
 
 self.addEventListener('install', (e) => {

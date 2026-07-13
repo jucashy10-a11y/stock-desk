@@ -10,6 +10,7 @@
 
 const yahoo = require('./yahoo');
 const screener = require('./screener');
+const kite = require('./kite');
 
 // ---------- indicator math ----------
 
@@ -44,7 +45,7 @@ function rsi(closes, period = 14) {
     avgGain = (avgGain * (period - 1) + Math.max(d, 0)) / period;
     avgLoss = (avgLoss * (period - 1) + Math.max(-d, 0)) / period;
   }
-  if (avgLoss === 0) return 100;
+  if (avgLoss === 0) return avgGain === 0 ? 50 : 100;
   return 100 - 100 / (1 + avgGain / avgLoss);
 }
 
@@ -110,7 +111,98 @@ function cagr(first, last, years) {
   return (Math.pow(last / first, 1 / years) - 1) * 100;
 }
 
-async function research(symbol) {
+function buildTwoXCase(price, fund, statements, valuation, sector = '', market = {}) {
+  const years = 4;
+  const marketDoubleCagr = (Math.pow(2, 1 / years) - 1) * 100;
+  const rev = statements?.revenueCagr3y;
+  const profit = statements?.profitCagr3y;
+  const earnings = fund?.earningsGrowth;
+  const growthInputs = [
+    rev != null && isFinite(rev) ? { value: clamp(rev, -10, 35), weight: 0.25 } : null,
+    profit != null && isFinite(profit) ? { value: clamp(profit, -10, 35), weight: 0.65 } : null,
+    earnings != null && isFinite(earnings) ? { value: clamp(earnings, -10, 35), weight: 0.1 } : null,
+  ].filter(Boolean);
+  const growthAssumption = growthInputs.length
+    ? clamp(growthInputs.reduce((s, x) => s + x.value * x.weight, 0) / growthInputs.reduce((s, x) => s + x.weight, 0), 0, 30)
+    : null;
+  const currentPE = fund?.pe > 0 ? fund.pe : valuation?.currentPE > 0 ? valuation.currentPE : null;
+  const justifiedPE = valuation?.justifiedPE > 0 ? valuation.justifiedPE : 20;
+  // Conservative base case never assumes P/E expansion. A low-P/E cyclical
+  // must double through earnings, not through a manufactured re-rating.
+  const exitPE = currentPE ? Math.max(3, Math.min(currentPE, justifiedPE, 35)) : clamp(justifiedPE, 8, 30);
+  const multipleChange = currentPE ? exitPE / currentPE : 0.85;
+  const requiredCagr = (Math.pow(2 / multipleChange, 1 / years) - 1) * 100;
+  const baseTarget = growthAssumption == null ? null : price * Math.pow(1 + growthAssumption / 100, years) * multipleChange;
+  const bullGrowth = growthAssumption == null ? null : clamp(growthAssumption + 5, 0, 35);
+  const bearGrowth = growthAssumption == null ? null : clamp(growthAssumption - 8, -5, 22);
+  const bullTarget = bullGrowth == null ? null : price * Math.pow(1 + bullGrowth / 100, years) * (currentPE ? Math.min(1, 35 / currentPE) : 0.95);
+  const bearTarget = bearGrowth == null ? null : price * Math.pow(1 + bearGrowth / 100, years) * multipleChange * 0.75;
+  const isFinancial = /bank|nbfc|financial|insurance/i.test(sector);
+  const cashSamples = (statements?.annual || []).slice(-3)
+    .filter((x) => x.netIncome > 0 && x.ocf != null)
+    .map((x) => x.ocf / x.netIncome)
+    .filter((x) => isFinite(x));
+  const cashConversion = cashSamples.length ? cashSamples.reduce((a, b) => a + b, 0) / cashSamples.length : null;
+  const marketCapCr = fund?.marketCap != null ? fund.marketCap / 1e7 : null;
+  const promoterTrend = statements?.shareholding?.promoterTrend;
+  const historyComplete = (statements?.annual?.length || 0) >= 4 && (statements?.quarterly?.length || 0) >= 4;
+  const liquidEnough = market.historyDays >= 252 && market.avgTradedValue >= 2e7;
+  const supportedSector = !isFinancial;
+  const requiredFields = isFinancial
+    ? [rev, profit, fund?.roe, fund?.profitMargin, promoterTrend, marketCapCr]
+    : [rev, profit, fund?.roe, fund?.profitMargin, fund?.debtToEquity, cashConversion, promoterTrend, marketCapCr];
+  const dataComplete = supportedSector && historyComplete && liquidEnough
+    && requiredFields.every((x) => x != null && isFinite(x));
+  const checks = [];
+  let score = 0;
+  const check = (pass, points, label) => { if (pass) { score += points; checks.push(label); } };
+  check(rev >= 15, 18, `Revenue CAGR ${rev?.toFixed(1)}%`);
+  check(profit >= 18, 18, `Profit CAGR ${profit?.toFixed(1)}%`);
+  check((fund?.roe ?? 0) >= 15, 14, `ROE ${fund?.roe?.toFixed(1)}%`);
+  check((fund?.roce ?? 0) >= 15, 8, `ROCE ${fund?.roce?.toFixed(1)}%`);
+  check((fund?.profitMargin ?? -1) > 0, 8, 'Profitable business');
+  check(isFinancial || (fund?.debtToEquity != null && fund.debtToEquity <= 80), 10, isFinancial ? 'Financial-sector leverage assessed separately' : 'Manageable debt');
+  check(isFinancial || (cashConversion != null && cashConversion >= 0.8), 10, isFinancial ? 'Cash-flow test not applicable to lenders' : '3-year cash conversion supports profit');
+  check(promoterTrend != null && promoterTrend >= -1, 5, 'Promoter holding stable');
+  check(marketCapCr != null && marketCapCr >= 500 && marketCapCr <= 150000, 5, 'Scalable market-cap range');
+  check(growthAssumption != null && growthAssumption >= requiredCagr, 4, 'Modeled growth clears 2x hurdle');
+  if (currentPE && growthAssumption > 0 && currentPE / growthAssumption > 2.5) score -= 12;
+  if ((fund?.debtToEquity ?? 0) > 150) score -= 15;
+  if ((fund?.profitMargin ?? 1) < 0) score -= 20;
+  score = clamp(Math.round(score), 0, 100);
+  const baseUpsidePct = baseTarget == null ? null : ((baseTarget - price) / price) * 100;
+  return {
+    modelVersion: '2x-v1',
+    asOf: Date.now(),
+    horizon: `${years} years`,
+    doublePrice: price * 2,
+    marketDoubleCagr,
+    requiredCagr,
+    growthAssumption,
+    currentPE,
+    exitPE,
+    earningsMultiplier: growthAssumption == null ? null : Math.pow(1 + growthAssumption / 100, years),
+    multipleMultiplier: multipleChange,
+    cashConversion,
+    score,
+    baseTarget,
+    baseUpsidePct,
+    bullTarget,
+    bullUpsidePct: bullTarget == null ? null : ((bullTarget - price) / price) * 100,
+    bearTarget,
+    bearUpsidePct: bearTarget == null ? null : ((bearTarget - price) / price) * 100,
+    dataComplete,
+    historyComplete,
+    liquidEnough,
+    supportedSector,
+    unsupportedReason: isFinancial ? 'Banks/NBFCs/insurers require a lender-specific asset-quality model' : null,
+    clearsTwoX: dataComplete && growthAssumption >= requiredCagr
+      && baseUpsidePct != null && baseUpsidePct >= 100 && score >= 70,
+    checks,
+  };
+}
+
+async function research(symbol, options = {}) {
   symbol = String(symbol || '').trim().toUpperCase();
   if (/^[A-Z0-9&-]+$/.test(symbol)) symbol += '.NS';
   let [hist, quoteMap, fund, fin] = await Promise.all([
@@ -124,13 +216,21 @@ async function research(symbol) {
     fund = fund || { symbol };
     if (fund.pe == null && fin.ratios.pe != null) fund.pe = fin.ratios.pe;
     if (fund.roe == null && fin.ratios.roe != null) fund.roe = fin.ratios.roe;
+    if (fund.roce == null && fin.ratios.roce != null) fund.roce = fin.ratios.roce;
     if (fund.divYield == null && fin.ratios.divYield != null) fund.divYield = fin.ratios.divYield;
     if (fund.marketCap == null && fin.ratios.marketCap != null) fund.marketCap = fin.ratios.marketCap;
     if (fund.pb == null && fin.ratios.bookValue > 0 && fin.ratios.price > 0) {
       fund.pb = fin.ratios.price / fin.ratios.bookValue;
     }
   }
-  const quote = quoteMap[symbol] || (await yahoo.quoteFromChart(symbol));
+  const yahooQuote = quoteMap[symbol] || (await yahoo.quoteFromChart(symbol));
+  let liveQuote = options.liveQuote || null;
+  if (!liveQuote && kite.status().connected) {
+    try { liveQuote = (await kite.quotes([symbol]))[symbol] || null; } catch { /* Yahoo remains available */ }
+  }
+  const quote = liveQuote
+    ? { ...yahooQuote, ...liveQuote, name: yahooQuote.name || liveQuote.name, yearHigh: yahooQuote.yearHigh, yearLow: yahooQuote.yearLow }
+    : yahooQuote;
   const candles = hist.candles;
   if (!candles || candles.length < 30) throw new Error('Not enough price history for ' + symbol);
   const closes = candles.map((c) => c.close);
@@ -461,6 +561,10 @@ async function research(symbol) {
     analystHigh: fund?.analystTargetHigh ?? null,
     analystLow: fund?.analystTargetLow ?? null,
   };
+  const twoX = buildTwoXCase(price, fund, statements, valuation, options.sector || '', {
+    historyDays: candles.length,
+    avgTradedValue: (t.avgVol60 || 0) * price,
+  });
 
   return {
     symbol,
@@ -490,9 +594,10 @@ async function research(symbol) {
     negatives: [...tPoints.filter((p) => !p.good), ...fPoints.filter((p) => !p.good)].map((p) => p.text),
     shortTerm,
     longTerm,
+    twoX,
     disclaimer:
       'These projections are statistical estimates derived from historical volatility, momentum and analyst data. They are NOT investment advice and markets can behave very differently. Do your own diligence or consult a SEBI-registered advisor.',
   };
 }
 
-module.exports = { research };
+module.exports = { research, buildTwoXCase };

@@ -556,20 +556,21 @@ async function renderIdeas() {
     <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:6px">
       <div>
         <div class="page-title">Stock Ideas</div>
-        <div class="page-sub" style="margin-bottom:0" id="ideas-sub">Screening the universe for +25% modelled potential…</div>
+        <div class="page-sub" style="margin-bottom:0" id="ideas-sub">Screening for quality, momentum and strict 4-year 2X scenarios…</div>
       </div>
       <button class="btn sm" id="ideas-refresh">↻ Re-scan</button>
     </div>
     <div class="disclaimer" style="margin:10px 0 16px">
-      ⚠ These are <b>algorithmic screens</b>, not tips. “+25% potential” is a modelled bull-case / valuation-gap scenario derived from
-      momentum, volatility, fundamentals and analyst targets — stocks can just as easily fall. Not investment advice.
+      ⚠ These are <b>algorithmic research candidates</b>, not tips or guaranteed returns. A “2X candidate” means the strict four-year
+      base-case model reaches 2× using verified growth, cash flow, balance-sheet and valuation assumptions. The model can be wrong and stocks can fall.
     </div>
     <div id="ideas-body"><div class="spinner"></div></div>`;
 
   $('#ideas-refresh').onclick = () => { loadIdeas(true); };
 
   function pickCard(p, horizon) {
-    const upLabel = horizon === 'short' ? '3-month view' : '12-month view';
+    const upLabel = horizon === 'short' ? '3-month view' : horizon === 'twoX' ? '4-year base-case model' : '12-month view';
+    const expectedLabel = horizon === 'twoX' ? '4Y base case' : 'Expected';
     return `<div class="idea-card" onclick="location.hash='#/stock/${encodeURIComponent(p.symbol)}'">
       <div class="ic-head">
         <div>
@@ -584,10 +585,12 @@ async function renderIdeas() {
         : '<span class="chg-pill" style="font-size:.64rem; letter-spacing:.5px; background:#eef2f7; color:#64748b">MODERATE CONVICTION</span>'}</div>
       <div class="ic-nums">
         <div><span>Price</span><b class="num">₹${inr(p.price)}</b></div>
-        <div><span>Expected</span><b class="num ${cls(p.expectedPct)}">₹${inr(p.expected, 0)} (${pct(p.expectedPct)})</b></div>
+        <div><span>${expectedLabel}</span><b class="num ${cls(p.expectedPct)}">₹${inr(p.expected, 0)} (${pct(p.expectedPct)})</b></div>
         <div><span>Bull case</span><b class="num up">₹${inr(p.bull, 0)} (${pct(p.bullPct)})</b></div>
         ${p.fairValue && horizon === 'long' ? `<div><span>Fair value</span><b class="num ${cls(p.fairUpsidePct)}">₹${inr(p.fairValue, 0)} (${pct(p.fairUpsidePct)})</b></div>` : ''}
         ${p.analystTarget ? `<div><span>Street target</span><b class="num">₹${inr(p.analystTarget, 0)}</b></div>` : ''}
+        ${p.twoX ? `<div><span>Growth assumed</span><b class="num">${pct(p.growthAssumption)}</b></div>
+        <div><span>2X CAGR required</span><b class="num">${pct(p.requiredCagr)}</b></div>` : ''}
       </div>
       <div class="ic-potential ${p.potentialPct >= 25 ? 'up' : ''}">▲ up to ${pct(p.potentialPct)} <small>· ${upLabel}</small></div>
       <ul class="pt-list" style="margin-top:8px">
@@ -620,7 +623,7 @@ async function renderIdeas() {
         return;
       }
       const r = st.results;
-      $('#ideas-sub').textContent = `Scanned ${r.scanned} shortlisted of ${r.universe} stocks · rebuilt ${new Date(st.builtAt).toLocaleTimeString('en-IN')} · refreshes every 30 min`;
+      $('#ideas-sub').textContent = `Researched ${r.researched ?? r.scanned}/${r.scanned} shortlisted from ${r.universe} stocks · live prices: ${(r.liveSource || 'yahoo').toUpperCase()} · rebuilt ${new Date(st.builtAt).toLocaleTimeString('en-IN')} · refreshes every 30 min`;
       const section = (title, subtitle, picks, horizon) => `
         <div style="margin-bottom:22px">
           <div style="display:flex; align-items:baseline; gap:10px; margin-bottom:10px">
@@ -628,7 +631,7 @@ async function renderIdeas() {
           </div>
           ${picks.length
             ? `<div class="ideas-grid">${picks.map((p) => pickCard(p, horizon)).join('')}</div>`
-            : `<div class="card"><div class="empty">No stocks clear the +25% bar with acceptable scores right now — that's the honest answer today. Re-scan later or after market moves.</div></div>`}
+            : `<div class="card"><div class="empty">${horizon === 'twoX' ? 'No stock currently clears every verified 2X base-case gate. Returning zero candidates is safer than forcing a tip.' : "No stocks clear this scanner's quality and risk gates right now."}</div></div>`}
         </div>`;
       const scanners = r.scanners && r.scanners.length ? r.scanners : [
         { key: 'short', label: 'SHORT-TERM MOMENTUM', subtitle: '1–3 months', horizon: 'short', picks: r.shortTerm },
@@ -1132,6 +1135,34 @@ async function renderStock(params) {
     </div>`;
   }
 
+  function twoXCard(r) {
+    const x = r.twoX;
+    if (!x) return '';
+    if (!x.dataComplete) {
+      return `<div class="proj-card" style="margin-bottom:18px; border-color:var(--amber)">
+        <h4>2X Research Scenario · 4 years</h4>
+        <div class="muted" style="font-size:.84rem">Not eligible: ${esc(x.unsupportedReason || 'the strict model is missing required history, liquidity, financial, cash-flow, leverage, ownership, or market-cap data')}. No 2X claim is shown.</div>
+      </div>`;
+    }
+    const status = x.clearsTwoX ? 'PASSES 2X BASE-CASE GATES' : 'DOES NOT CLEAR 2X BASE CASE';
+    return `<div class="proj-card" style="margin-bottom:18px; border-color:${x.clearsTwoX ? 'var(--green)' : 'var(--amber)'}">
+      <h4>2X Research Scenario · ${esc(x.horizon)}</h4>
+      <div style="display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:10px">
+        <b class="${x.clearsTwoX ? 'up' : ''}">${status}</b><b>Quality score ${x.score}/100</b>
+      </div>
+      <div class="ic-nums">
+        <div><span>Current price</span><b class="num">₹${inr(r.quote.price)}</b></div>
+        <div><span>Base target</span><b class="num ${cls(x.baseUpsidePct)}">₹${inr(x.baseTarget)} (${pct(x.baseUpsidePct)})</b></div>
+        <div><span>Bear target</span><b class="num ${cls(x.bearUpsidePct)}">₹${inr(x.bearTarget)} (${pct(x.bearUpsidePct)})</b></div>
+        <div><span>Bull target</span><b class="num ${cls(x.bullUpsidePct)}">₹${inr(x.bullTarget)} (${pct(x.bullUpsidePct)})</b></div>
+        <div><span>Growth assumed</span><b class="num">${pct(x.growthAssumption)}</b></div>
+        <div><span>2X CAGR required</span><b class="num">${pct(x.requiredCagr)}</b></div>
+        <div><span>Current → exit P/E</span><b class="num">${x.currentPE ? x.currentPE.toFixed(1) : '—'}x → ${x.exitPE.toFixed(1)}x</b></div>
+      </div>
+      <div class="muted" style="font-size:.74rem; margin-top:10px">This is a deterministic scenario, not a prediction or guaranteed return. It qualifies only from the base case, never from volatility alone.</div>
+    </div>`;
+  }
+
   function financialsSection(r) {
     const a = r.statements?.annual || [];
     const q = r.statements?.quarterly || [];
@@ -1279,6 +1310,8 @@ async function renderStock(params) {
           </div>
 
           ${valuationCard(r)}
+
+          ${twoXCard(r)}
 
           <div class="grid" style="grid-template-columns: 1fr 1fr">
             <div>
@@ -1851,9 +1884,9 @@ async function renderPortfolio() {
     const fileInput = $('#shot-file', ov);
     const status = $('#shot-status', ov);
 
-    /** Read file to base64; downscale large images so upload stays small + safe on iOS. */
+    /** Read file to base64; keep as much resolution as possible (server enhances). */
     async function fileToBase64(file) {
-      if (file.size <= 3 * 1024 * 1024) {
+      if (file.size <= 8 * 1024 * 1024) {
         return await new Promise((res, rej) => {
           const r = new FileReader();
           r.onload = () => res(r.result);
@@ -1861,20 +1894,20 @@ async function renderPortfolio() {
           r.readAsDataURL(file);
         });
       }
-      // big image: draw to a modest canvas (safe size for all phones) as JPEG
+      // very big image: downscale gently, high-quality JPEG
       const img = await new Promise((res, rej) => {
         const i = new Image();
         i.onload = () => res(i);
         i.onerror = () => rej(new Error('Could not read the image'));
         i.src = URL.createObjectURL(file);
       });
-      const scale = Math.min(1, 2000 / img.width);
+      const scale = Math.min(1, 2800 / img.width);
       const canvas = document.createElement('canvas');
       canvas.width = Math.round(img.width * scale);
       canvas.height = Math.round(img.height * scale);
       canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
       URL.revokeObjectURL(img.src);
-      return canvas.toDataURL('image/jpeg', 0.9);
+      return canvas.toDataURL('image/jpeg', 0.92);
     }
 
     /** Re-check a symbol/price against live market (for manual entries + edits). */
