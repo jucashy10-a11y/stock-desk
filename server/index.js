@@ -614,9 +614,15 @@ app.post('/api/ocr/trades', wrap(async (req, res) => {
       }
       return prev[n];
     };
+    // candidates = built-in universe + everything the user actually holds
+    // (NAME_MAP alone is empty of holdings on a fresh cloud disk)
+    const knownSymbols = new Set(NAME_MAP.keys());
+    try {
+      for (const s of portfolio.allSymbolNames()) knownSymbols.add(s.symbol);
+    } catch {}
     const fuzzyKnown = (sym) => {
       let best = null, bestD = 9;
-      for (const key of NAME_MAP.keys()) {
+      for (const key of knownSymbols) {
         const cand = key.replace(/\.(NS|BO)$/, '');
         if (cand === sym) return null;
         const d = editDist(sym, cand);

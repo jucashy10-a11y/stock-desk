@@ -407,7 +407,20 @@ function getAllAccounts() {
   return { id: 'all', name: 'All Accounts', holdings, accounts };
 }
 
+/** Every symbol/name the user actually holds — used for OCR fuzzy-repair. */
+function allSymbolNames() {
+  const st = loadState();
+  const out = new Map();
+  for (const pf of st.portfolios) {
+    for (const tx of pf.transactions) {
+      if (tx.symbol && !out.has(tx.symbol)) out.set(tx.symbol, tx.name || tx.symbol);
+    }
+  }
+  return [...out.entries()].map(([symbol, name]) => ({ symbol, name }));
+}
+
 module.exports = {
+  allSymbolNames,
   cloudRestore,
   getAllAccounts,
   listPortfolios,
