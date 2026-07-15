@@ -148,8 +148,9 @@ async function resolveSymbol(name, isin, exchange) {
     return symCache[key];
   }
   const suffix = exchange === 'BSE' ? '.BO' : '.NS';
-  // exact trading symbol (e.g. "TATSILV" from a broker screenshot)? verify directly
-  if (name && /^[A-Z0-9&-]{2,20}$/.test(name.trim()) && !isin) {
+  // exact trading symbol (e.g. "TATSILV" from a broker statement)? verify directly —
+  // even when an ISIN is supplied, the direct match is the most reliable signal
+  if (name && /^[A-Z0-9&-]{2,20}$/.test(name.trim())) {
     try {
       const direct = name.trim() + suffix;
       const q = await yahoo.quoteFromChart(direct);
@@ -164,11 +165,14 @@ async function resolveSymbol(name, isin, exchange) {
   if (alias?.query) tryQueries.push(alias.query);
   if (isin) tryQueries.push(isin);
   if (name) tryQueries.push(name);
+  const base = (s) => s.replace(/\.(NS|BO)$/, '').toUpperCase();
   for (const q of tryQueries) {
     try {
       const results = await yahoo.search(q);
-      // prefer requested exchange, then any Indian listing
+      // exact ticker match beats everything (SIYARAM must not become SIYSIL),
+      // then requested exchange, then any Indian listing
       const pick =
+        (name && results.find((r) => base(r.symbol) === name.trim().toUpperCase())) ||
         results.find((r) => r.symbol.endsWith(suffix)) ||
         results.find((r) => r.symbol.endsWith('.NS') || r.symbol.endsWith('.BO'));
       if (pick) {
