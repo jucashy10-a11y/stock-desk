@@ -317,7 +317,9 @@ async function extractTrades(base64) {
   // Run recovery when the primary pass is incomplete (or the footer count
   // itself was unreadable). A complete primary pass is safer than merging in
   // raw-pass false positives.
-  const needsRecovery = enhanced && (!expected1 || rows1.length !== expected1);
+  const hasInconsistentColumns = rows1.some((row) => rowQuality(row) < 0.9);
+  const needsRecovery = enhanced
+    && (!expected1 || rows1.length !== expected1 || hasInconsistentColumns);
   const text2 = needsRecovery ? await ocrImage(buffer) : '';
   const rows2 = text2 ? parseRows(text2) : [];
   const rows = expected1 && rows1.length === expected1 ? rows1 : mergePassRows(rows1, rows2);

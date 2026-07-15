@@ -581,9 +581,17 @@ app.post('/api/ocr/trades', wrap(async (req, res) => {
     }
     const avgCheck = nearestScale(r.avgRaw);
     const valueCheck = nearestScale(r.value && r.qty ? r.value / r.qty : null);
-    const columnsAgree = !avgCheck || !valueCheck
-      || Math.abs(avgCheck.value - valueCheck.value) / Math.max(avgCheck.value, valueCheck.value) <= 0.02;
-    if (!columnsAgree) {
+    const columnGap = avgCheck && valueCheck
+      ? Math.abs(avgCheck.value - valueCheck.value) / Math.max(avgCheck.value, valueCheck.value)
+      : 0;
+    // The broker's Avg column is the cost basis. Live price is used only to
+    // restore a dropped decimal; it must never replace the historical Avg.
+    if (avgCheck && columnGap <= 0.2) {
+      r.price = +avgCheck.value.toFixed(2);
+      r.ok = true;
+      if (columnGap > 0.02) r.note = 'Value column OCR mismatch; used broker Avg';
+    }
+    else if (avgCheck && valueCheck) {
       r.ok = false;
       r.note = `XTS Avg and Value / Qty disagree (${avgCheck.value.toFixed(2)} vs ${valueCheck.value.toFixed(2)})`;
     }
@@ -596,8 +604,21 @@ app.post('/api/ocr/trades', wrap(async (req, res) => {
     const misses = [];
     for (const r of rows) {
       const q = quotes[r.symbol + '.NS'];
-      if (q?.price) liveCheck(r, q);
+      if (q?.price) { r.exchange = 'NSE'; liveCheck(r, q); }
       else misses.push(r);
+    }
+    // Check the exact BSE ticker before fuzzy repair. Some XTS cash
+    // positions are BSE-only (for example SIYARAM, which is not SIYSIL).
+    if (misses.length) {
+      const bseQuotes = await getQuotes([...new Set(misses.map((r) => r.symbol + '.BO'))]);
+      for (let i = misses.length - 1; i >= 0; i--) {
+        const r = misses[i];
+        const q = bseQuotes[r.symbol + '.BO'];
+        if (!q?.price) continue;
+        r.exchange = 'BSE';
+        liveCheck(r, q);
+        misses.splice(i, 1);
+      }
     }
     // OCR mangles letters ("COCKERILL"->"COCKERIL", "IDEA"->"IDES") — repair:
     // 1) fuzzy match against symbols we know (user's holdings + universe), 2) search
@@ -621,36 +642,43 @@ app.post('/api/ocr/trades', wrap(async (req, res) => {
       for (const s of portfolio.allSymbolNames()) knownSymbols.add(s.symbol);
     } catch {}
     const fuzzyKnown = (sym) => {
-      let best = null, bestD = 9;
+      let best = null, bestKey = null, bestD = 9;
       for (const key of knownSymbols) {
         const cand = key.replace(/\.(NS|BO)$/, '');
         if (cand === sym) return null;
         const d = editDist(sym, cand);
-        if (d < bestD) { bestD = d; best = cand; }
+        if (d < bestD) { bestD = d; best = cand; bestKey = key; }
       }
       const maxD = sym.length >= 6 ? 2 : 1;
-      return bestD <= maxD ? best : null;
+      return bestD <= maxD
+        ? { symbol: best, exchange: bestKey?.endsWith('.BO') ? 'BSE' : 'NSE' }
+        : null;
     };
     for (const r of misses) {
-      const local = fuzzyKnown(r.symbol);
-      if (local) {
-        r.note = `auto-corrected from "${r.symbol}"`;
-        r.symbol = local;
-        continue;
-      }
       try {
         const found = await yahoo.search(r.symbol);
-        const cand = found.find((x) => /\.(NS|BO)$/.test(x.symbol));
+        const base = (s) => s.replace(/\.(NS|BO)$/, '').toUpperCase();
+        const cand = found.find((x) => base(x.symbol) === r.symbol)
+          || found.find((x) => /\.(NS|BO)$/.test(x.symbol));
         if (cand) {
           const fixed = cand.symbol.replace(/\.(NS|BO)$/, '');
           if (fixed !== r.symbol) { r.note = `auto-corrected from "${r.symbol}"`; r.symbol = fixed; }
+          r.exchange = cand.symbol.endsWith('.BO') ? 'BSE' : 'NSE';
+          continue;
         }
       } catch { /* keep original */ }
+      const local = fuzzyKnown(r.symbol);
+      if (local) {
+        r.note = `auto-corrected from "${r.symbol}"`;
+        r.symbol = local.symbol;
+        r.exchange = local.exchange;
+      }
     }
     if (misses.length) {
-      const q2 = await getQuotes([...new Set(misses.map((r) => r.symbol + '.NS'))]);
+      const quoteSymbol = (r) => r.symbol + (r.exchange === 'BSE' ? '.BO' : '.NS');
+      const q2 = await getQuotes([...new Set(misses.map(quoteSymbol))]);
       for (const r of misses) {
-        const q = q2[r.symbol + '.NS'];
+        const q = q2[quoteSymbol(r)];
         if (q?.price) { const note = r.note; liveCheck(r, q); if (r.ok && note) r.note = note; }
         else { r.ok = false; r.note = 'symbol not found — check spelling'; }
       }

@@ -33,4 +33,11 @@ assert.equal(mergePassRows(
   [{ symbol: 'SBIN', type: 'BUY', qty: 5, price: 800, value: 4000, avgRaw: 800 }],
   [{ symbol: 'SBIN', type: 'BUY', qty: 6, price: 800, value: 4800, avgRaw: 800 }],
 )[0].ambiguous, true);
+assert.deepEqual(
+  mergePassRows(
+    [{ symbol: 'SUBEXLTD', type: 'SELL', qty: 500, price: 10.7, value: 5350, avgRaw: 1190 }],
+    [{ symbol: 'SUBEXLTD', type: 'SELL', qty: 500, price: 11.9, value: 5950, avgRaw: 1190 }],
+  )[0],
+  { symbol: 'SUBEXLTD', type: 'SELL', qty: 500, price: 11.9, value: 5950, avgRaw: 1190 },
+);
 console.log(`OCR parser: ${cases.length} trade layouts passed`);

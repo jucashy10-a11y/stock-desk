@@ -1915,11 +1915,17 @@ async function renderPortfolio() {
       if (!rows.length) return rows;
       let quotes = {};
       try {
-        quotes = await api('/api/quotes?symbols=' + encodeURIComponent([...new Set(rows.map((r) => r.symbol + '.NS'))].join(',')));
+        const symbols = [...new Set(rows.flatMap((r) => r.exchange
+          ? [r.symbol + (r.exchange === 'BSE' ? '.BO' : '.NS')]
+          : [r.symbol + '.NS', r.symbol + '.BO']))];
+        quotes = await api('/api/quotes?symbols=' + encodeURIComponent(symbols.join(',')));
       } catch { return rows; }
       for (const r of rows) {
-        const q = quotes[r.symbol + '.NS'];
+        const ns = quotes[r.symbol + '.NS'];
+        const bo = quotes[r.symbol + '.BO'];
+        const q = r.exchange === 'BSE' ? bo : r.exchange === 'NSE' ? ns : (ns || bo);
         if (!q?.price) { r.ok = false; r.note = 'symbol not found — check spelling'; continue; }
+        r.exchange = q.symbol?.endsWith('.BO') ? 'BSE' : 'NSE';
         r.ltp = q.price;
         const cands = [];
         for (const base of [r.price, r.value && r.qty ? r.value / r.qty : null]) {
@@ -1982,6 +1988,7 @@ async function renderPortfolio() {
           else if (el.dataset.f === 'type') r.type = el.value;
           else {
             r.symbol = el.value.toUpperCase().trim();
+            delete r.exchange;
             // re-check price scale + symbol against live market after an edit
             validateRows([r]).then(() => showPreview(rows, ocrText, expectedCount));
           }
@@ -2008,7 +2015,7 @@ async function renderPortfolio() {
         $('#shot-save', ov).disabled = true;
         const today = new Date();
         const d = `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}/${today.getFullYear()}`;
-        const csv = valid.map((r) => `,${r.symbol},${r.date || d},${r.type === 'SELL' ? 'Sell' : 'Buy'},NSE,${r.qty},${r.price}`).join('\n');
+        const csv = valid.map((r) => `,${r.symbol},${r.date || d},${r.type === 'SELL' ? 'Sell' : 'Buy'},${r.exchange || 'NSE'},${r.qty},${r.price}`).join('\n');
         try {
           const res = await api(`/api/portfolios/${activePfId}/import`, { method: 'POST', body: JSON.stringify({ csv }) });
           toast(`Saved ${res.imported} transaction${res.imported > 1 ? 's' : ''} 🎉`, 'ok');
