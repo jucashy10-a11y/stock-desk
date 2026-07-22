@@ -114,14 +114,16 @@ async function refreshConnBadge() {
   try {
     const st = await api('/api/kite/status');
     const badge = $('#conn-badge');
+    badge.style.cursor = 'pointer';
+    badge.onclick = () => { location.hash = '#/settings'; };
     if (st.connected) {
       badge.classList.add('live');
       $('#conn-label').textContent = 'KITE LIVE';
-      badge.title = `Kite connected as ${st.userName}`;
+      badge.title = `Kite connected as ${st.userName} — tap for Settings`;
     } else {
       badge.classList.remove('live');
-      $('#conn-label').textContent = 'DELAYED';
-      badge.title = 'Using free Yahoo Finance data (delayed). Connect Kite in Settings for live data.';
+      $('#conn-label').textContent = 'DELAYED · CONNECT';
+      badge.title = 'Delayed data — tap to connect Kite for live prices';
     }
   } catch {}
 }
@@ -2192,17 +2194,29 @@ async function renderSettings() {
         <div class="card-body" id="kite-body"><div class="spinner"></div></div>
       </div>
       <div class="card">
-        <div class="card-head"><span class="card-title">How it works</span></div>
-        <div class="card-body" style="font-size:.83rem; line-height:1.7; color:#3c4a63">
-          <b>1.</b> Create an app at <a href="https://developers.kite.trade" target="_blank" style="color:var(--accent)">developers.kite.trade</a> (₹2000/mo for Kite Connect, or use a free personal API key if you have one).<br/>
-          <b>2.</b> Set the app's <b>Redirect URL</b> to <code id="cb-url" style="background:#eef2f7; padding:2px 6px; border-radius:4px; font-size:.75rem"></code><br/>
-          <b>3.</b> Paste your API key &amp; secret here, save, then click <b>Connect</b> and log in with your Zerodha account.<br/>
-          <b>4.</b> Access tokens expire daily (~6 AM IST) — just click Connect again each morning.<br/><br/>
-          <span class="muted">Without Kite, the app automatically uses free Yahoo Finance data (delayed ~15 minutes) — everything still works.</span>
+        <div class="card-head"><span class="card-title">Redirect URL — update this at Zerodha</span></div>
+        <div class="card-body" style="font-size:.83rem; line-height:1.6; color:#3c4a63">
+          <div style="background:#fff7ed; border:1px solid #fbd7aa; border-radius:9px; padding:11px 13px; margin-bottom:12px; color:#9a4a12; font-size:.8rem">
+            Your Kite app must point back to <b>this</b> site. Go to <a href="https://developers.kite.trade/apps" target="_blank" style="color:#9a4a12; text-decoration:underline">developers.kite.trade → your app</a>, set the <b>Redirect URL</b> to the address below, and Save.
+          </div>
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
+            <code id="cb-url" style="background:#eef2f7; padding:8px 11px; border-radius:7px; font-size:.78rem; flex:1; min-width:0; overflow-x:auto; white-space:nowrap"></code>
+            <button class="btn sm" id="cb-copy">Copy</button>
+          </div>
+          <div style="margin-top:14px; font-size:.8rem">
+            <b>Daily login (~30 sec, after Zerodha's 6 AM reset):</b><br/>
+            1. Tap <b>⚡ Connect / Re-login</b> above → log in at Zerodha.<br/>
+            2. It redirects back here and you're live. <span class="muted">(If the redirect URL isn't updated yet, copy the <code>request_token=…</code> from the address bar you land on and paste it in the Exchange box above — works either way.)</span>
+          </div>
+          <div class="muted" style="margin-top:12px; font-size:.76rem">Without Kite, the app uses free Yahoo data (~15 min delayed) — everything still works.</div>
         </div>
       </div>
     </div>`;
   $('#cb-url').textContent = location.origin + '/api/kite/callback';
+  $('#cb-copy').onclick = async () => {
+    try { await navigator.clipboard.writeText(location.origin + '/api/kite/callback'); toast('Redirect URL copied', 'ok'); }
+    catch { toast('Copy failed — select the URL manually', 'err'); }
+  };
 
   async function loadKite() {
     const st = await api('/api/kite/status');
