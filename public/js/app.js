@@ -213,6 +213,7 @@ const routes = {
   dashboard: renderDashboard,
   markets: renderMarkets,
   ideas: renderIdeas,
+  signals: renderSignals,
   gold: renderCommodities,
   stock: renderStock,
   portfolio: renderPortfolio,
@@ -549,10 +550,124 @@ async function renderMarkets() {
   }, 15000);
 }
 
+// ================= SIGNALS HUB =================
+
+async function renderSignals() {
+  app.innerHTML = `
+    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:8px">
+      <div>
+        <div class="page-title">Signals</div>
+        <div class="page-sub" style="margin-bottom:0" id="sig-sub">Auto-scanned technical setups, news radar &amp; top picks</div>
+      </div>
+    </div>
+    <div class="stock-tabs" id="sig-tabs">
+      <button data-t="setups" class="active">📈 Setups</button>
+      <button data-t="news">📰 News Radar</button>
+      <button data-t="picks">⭐ Top Picks</button>
+    </div>
+    <div class="disclaimer" style="margin:0 0 16px">
+      ⚠ Mechanical signals from price/volume — <b>not advice or guaranteed trades</b>. Entry/stop/target are suggested levels; setups fail often. Always size to your stop-loss.
+    </div>
+    <div id="sig-body"><div class="spinner"></div></div>`;
+
+  let tab = 'setups';
+  $$('#sig-tabs button').forEach((b) => {
+    b.onclick = () => {
+      $$('#sig-tabs button').forEach((x) => x.classList.remove('active'));
+      b.classList.add('active');
+      tab = b.dataset.t;
+      render();
+    };
+  });
+
+  function setupCard(s) {
+    const sym = dispSym(s.symbol);
+    const rrColor = s.rr >= 2.5 ? 'var(--green)' : s.rr >= 1.8 ? 'var(--amber)' : 'var(--muted)';
+    return `<div class="sig-card" onclick="location.hash='#/stock/${encodeURIComponent(s.symbol)}'">
+      <div class="sig-head">
+        <div><span class="s-sym" style="font-size:.95rem">${esc(sym)}</span>
+          <span class="chg-pill ${s.pctFromHigh > -3 ? 'up' : ''}" style="font-size:.62rem">${esc(s.label)}</span></div>
+        <span class="sig-q" title="setup quality">${s.quality}</span>
+      </div>
+      <div class="s-name" style="margin:2px 0 10px">${esc(s.name)} · ₹${inr(s.price)}</div>
+      <div class="sig-levels">
+        <div class="sl"><span>ENTRY</span><b>₹${inr(s.entry)}</b></div>
+        <div class="sl"><span>STOP</span><b class="down">₹${inr(s.stop)} <small>${pct(s.stopPct)}</small></b></div>
+        <div class="sl"><span>TARGET</span><b class="up">₹${inr(s.target)} <small>+${s.targetPct}%</small></b></div>
+        <div class="sl"><span>R:R</span><b style="color:${rrColor}">${s.rr} : 1</b></div>
+      </div>
+      <div class="sig-meta"><span>Hist. hit-rate ~${s.hitRate}%</span><span>RSI ${s.rsi ?? '—'}</span><span>Vol ${s.volMult}×</span></div>
+      <ul class="pt-list" style="margin-top:8px">
+        ${s.reasons.map((r) => `<li class="pos"><span class="ico">+</span><span style="font-size:.76rem">${esc(r)}</span></li>`).join('')}
+      </ul>
+    </div>`;
+  }
+
+  async function loadSetups(force) {
+    const st = await api('/api/signals' + (force ? '?force=1' : ''));
+    if (st.status === 'building') {
+      const p = st.total ? Math.round((st.progress / st.total) * 100) : 0;
+      $('#sig-body').innerHTML = `<div class="card"><div class="card-body" style="text-align:center; padding:34px">
+        <div class="spinner"></div>
+        <div style="font-weight:700; margin-top:10px">Scanning ${st.total || '…'} charts for setups</div>
+        <div class="muted" style="font-size:.8rem; margin-top:4px">${st.progress}/${st.total || '?'} analysed</div>
+        <div style="max-width:320px; height:8px; background:#e9edf4; border-radius:4px; margin:14px auto 0"><div style="width:${p}%; height:100%; background:var(--navy); border-radius:4px; transition:width .5s"></div></div>
+      </div></div>`;
+      setPoll(() => loadSetups(false), 2500);
+      return;
+    }
+    setPoll(null);
+    if (st.status === 'error' || !st.results) {
+      $('#sig-body').innerHTML = `<div class="card"><div class="empty">Scan failed. <button class="btn sm" onclick="location.reload()">Retry</button></div></div>`;
+      return;
+    }
+    const r = st.results;
+    $('#sig-sub').textContent = `${r.totalSetups} live setups across ${r.scanned} charts · updated ${new Date(st.builtAt).toLocaleTimeString('en-IN')} · auto-refreshes`;
+    $('#sig-body').innerHTML = `
+      <div style="display:flex; justify-content:flex-end; margin-bottom:10px"><button class="btn sm" id="sig-rescan">↻ Re-scan now</button></div>
+      ${r.groups.map((g) => `<div style="margin-bottom:22px">
+        <div style="display:flex; align-items:baseline; gap:10px; margin-bottom:10px">
+          <div class="card-title">${esc(g.label)} <span style="color:var(--muted)">(${g.setups.length})</span></div>
+          <span class="muted" style="font-size:.74rem">${esc(g.subtitle)}</span>
+        </div>
+        <div class="ideas-grid">${g.setups.map(setupCard).join('')}</div>
+      </div>`).join('') || '<div class="card"><div class="empty">No clean setups right now — the scanner stays quiet rather than forcing trades. Check back after the next scan.</div></div>'}`;
+    const rs = $('#sig-rescan'); if (rs) rs.onclick = () => { $('#sig-body').innerHTML = '<div class="spinner"></div>'; loadSetups(true); };
+  }
+
+  async function loadNews() {
+    $('#sig-body').innerHTML = '<div class="spinner"></div>';
+    try {
+      const d = await api('/api/news-radar');
+      const ago = (ts) => { if (!ts) return ''; const m = Math.round((Date.now() - ts) / 60000); return m < 60 ? m + 'm ago' : m < 1440 ? Math.round(m / 60) + 'h ago' : Math.round(m / 1440) + 'd ago'; };
+      $('#sig-body').innerHTML = d.items.length
+        ? `<div class="card"><div class="card-head"><span class="card-title">Latest across your stocks &amp; the market</span><span class="muted" style="font-size:.7rem">updated ${new Date(d.builtAt).toLocaleTimeString('en-IN')}</span></div>
+           <div>${d.items.map((n) => `<a class="news-row" href="${esc(n.link || '#')}" target="_blank" rel="noopener">
+             <div class="nr-title"><b>${esc(n.stock)}</b> — ${esc(n.title)}</div>
+             <div class="nr-meta"><span class="tone-chip ${n.tone}">${n.tone}</span><span>${esc(n.source || '')}</span><span>·</span><span>${ago(n.publishedAt)}</span></div>
+           </a>`).join('')}</div></div>`
+        : '<div class="card"><div class="empty">No fresh material news in the last few days.</div></div>';
+    } catch (e) {
+      $('#sig-body').innerHTML = `<div class="card"><div class="empty">News radar unavailable: ${esc(e.message)}</div></div>`;
+    }
+  }
+
+  function render() {
+    setPoll(null);
+    if (tab === 'setups') loadSetups(false);
+    else if (tab === 'news') loadNews();
+    else { $('#sig-body').innerHTML = '<div id="ideas-embed"></div>'; renderIdeasInto('#ideas-embed'); }
+  }
+  render();
+}
+
 // ================= IDEAS =================
 
-async function renderIdeas() {
-  app.innerHTML = `
+async function renderIdeas() { renderIdeasInto(null); }
+
+async function renderIdeasInto(container) {
+  const host = container ? $(container) : app;
+  const header = container ? '' : `
     <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:6px">
       <div>
         <div class="page-title">Stock Ideas</div>
@@ -563,8 +678,13 @@ async function renderIdeas() {
     <div class="disclaimer" style="margin:10px 0 16px">
       ⚠ These are <b>algorithmic research candidates</b>, not tips or guaranteed returns. A “2X candidate” means the strict four-year
       base-case model reaches 2× using verified growth, cash flow, balance-sheet and valuation assumptions. The model can be wrong and stocks can fall.
-    </div>
-    <div id="ideas-body"><div class="spinner"></div></div>`;
+    </div>`;
+  host.innerHTML = header +
+    (container ? `<div class="page-sub" id="ideas-sub" style="margin-bottom:12px"></div>` : '') +
+    `<div id="ideas-body"><div class="spinner"></div></div>`;
+
+  const refresh = $('#ideas-refresh');
+  if (refresh) refresh.onclick = () => { loadIdeas(true); };
 
   $('#ideas-refresh').onclick = () => { loadIdeas(true); };
 

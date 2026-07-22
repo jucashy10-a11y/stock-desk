@@ -14,6 +14,7 @@ const ideas = require('./ideas');
 const commodities = require('./commodities');
 const news = require('./news');
 const ocr = require('./ocr');
+const signals = require('./signals');
 const alerts = require('./alerts');
 const gistsync = require('./gistsync');
 const fs = require('fs');
@@ -333,6 +334,51 @@ app.get('/api/commodities', wrap(async (req, res) => {
 app.get('/api/ideas', wrap(async (req, res) => {
   if (req.query.peek === '1') return res.json(ideas.peek());
   res.json(ideas.ensure(req.query.force === '1'));
+}));
+
+/** Signals: technical setups with entry/stop/target. Includes user holdings. */
+function holdingSymbols() {
+  try {
+    return portfolio.allSymbolNames().map((s) => s.symbol);
+  } catch { return []; }
+}
+app.get('/api/signals', wrap(async (req, res) => {
+  if (req.query.peek === '1') return res.json(signals.peek());
+  res.json(signals.ensure(holdingSymbols(), req.query.force === '1'));
+}));
+
+/**
+ * News radar: material-news scan across holdings + top universe, most-recent
+ * first, with a light material/tone tag.
+ */
+let newsRadar = { at: 0, items: [] };
+async function buildNewsRadar() {
+  const syms = [...new Set([...holdingSymbols(), ...UNIVERSE.slice(0, 40).map((u) => u.symbol)])].slice(0, 60);
+  const seen = new Set();
+  const items = [];
+  for (let i = 0; i < syms.length; i += 6) {
+    await Promise.all(syms.slice(i, i + 6).map(async (sym) => {
+      const nm = NAME_MAP.get(sym) || sym.replace(/\.(NS|BO)$/, '');
+      try {
+        const arr = await news.forQuery(`"${nm}" stock India`);
+        for (const it of arr.slice(0, 3)) {
+          if (!it.publishedAt || Date.now() - it.publishedAt > 3 * 24 * 3600 * 1000) continue;
+          const key = it.title.slice(0, 60);
+          if (seen.has(key)) continue;
+          seen.add(key);
+          items.push({ ...it, symbol: sym, stock: dispSymName({ symbol: sym }) });
+        }
+      } catch {}
+    }));
+  }
+  items.sort((a, b) => (b.publishedAt || 0) - (a.publishedAt || 0));
+  newsRadar = { at: Date.now(), items: items.slice(0, 40) };
+}
+app.get('/api/news-radar', wrap(async (req, res) => {
+  if (!newsRadar.items.length || Date.now() - newsRadar.at > 30 * 60 * 1000) {
+    await buildNewsRadar();
+  }
+  res.json({ builtAt: newsRadar.at, items: newsRadar.items });
 }));
 
 // ---------- portfolio ----------
@@ -727,8 +773,41 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
 });
 
+/**
+ * 24/7 scheduler — the server never sleeps, so run signal scans + news radar
+ * on an Indian-market cadence: pre-open, through the session, and post-close.
+ * A 5-min tick decides what's due; results are cached and served to the app.
+ */
+function istNow() {
+  const d = new Date(Date.now() + 5.5 * 3600 * 1000);
+  return { day: d.getUTCDay(), hour: d.getUTCHours(), min: d.getUTCMinutes(), mins: d.getUTCHours() * 60 + d.getUTCMinutes() };
+}
+let lastSignalScan = 0, lastNews = 0;
+function scheduleTick() {
+  const t = istNow();
+  const weekday = t.day >= 1 && t.day <= 5;
+  const preOpen = weekday && t.mins >= 525 && t.mins < 555;       // 08:45–09:15
+  const session = weekday && t.mins >= 555 && t.mins <= 930;      // 09:15–15:30
+  const postClose = weekday && t.mins >= 945 && t.mins < 975;     // 16:15–16:15+
+  const sinceSig = Date.now() - lastSignalScan;
+  // pre-open + post-close: once; during session: every ~20 min
+  if (((preOpen || postClose) && sinceSig > 25 * 60 * 1000) || (session && sinceSig > 20 * 60 * 1000)) {
+    lastSignalScan = Date.now();
+    signals.ensure(holdingSymbols(), true);
+  }
+  // news radar every ~25 min while relevant (weekday 08:00–18:00), else hourly
+  const newsWindow = weekday && t.mins >= 480 && t.mins <= 1080;
+  const newsGap = Date.now() - lastNews;
+  if ((newsWindow && newsGap > 25 * 60 * 1000) || newsGap > 60 * 60 * 1000) {
+    lastNews = Date.now();
+    buildNewsRadar().catch(() => {});
+  }
+}
+
 Promise.allSettled([portfolio.cloudRestore(), kite.cloudRestore(), watchlistCloudRestore(), alerts.cloudRestore()]).finally(() => {
   alerts.startChecker(getQuotes, 60 * 1000);
+  setInterval(scheduleTick, 5 * 60 * 1000);
+  setTimeout(scheduleTick, 20 * 1000); // one shortly after boot
   app.listen(PORT, () => {
     console.log(`StockDesk running at http://localhost:${PORT}`);
   });

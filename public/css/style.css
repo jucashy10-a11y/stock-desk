@@ -415,6 +415,28 @@ table.data tbody tr:hover { background: #f4f8ff; }
 .cmd-signal.down .cs-action { color: var(--red); }
 .cmd-signal .cs-text { font-size: 0.82rem; color: #3c4a63; margin-top: 5px; line-height: 1.5; }
 
+/* ---------- signals ---------- */
+.sig-card {
+  background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 14px 15px;
+  cursor: pointer; transition: all 0.15s; box-shadow: var(--shadow);
+}
+.sig-card:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(15, 42, 92, 0.14); }
+.sig-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.sig-q {
+  width: 32px; height: 32px; border-radius: 8px; background: var(--navy); color: #fff;
+  display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.8rem;
+  font-family: var(--mono); flex-shrink: 0;
+}
+.sig-levels {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 4px 0 8px;
+  background: #f7f9fc; border: 1px solid var(--border); border-radius: 9px; padding: 9px 10px;
+}
+.sl { display: flex; flex-direction: column; gap: 1px; }
+.sl span { font-size: 0.56rem; font-weight: 800; letter-spacing: 0.5px; color: var(--muted); }
+.sl b { font-size: 0.82rem; font-family: var(--mono); font-weight: 700; }
+.sl small { font-size: 0.62rem; font-weight: 600; }
+.sig-meta { display: flex; gap: 12px; font-size: 0.7rem; color: var(--muted); font-weight: 600; }
+
 /* ---------- ideas ---------- */
 .scanner-chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 16px; }
 .scanner-chips::-webkit-scrollbar { display: none; }
@@ -704,6 +726,7 @@ table.data tbody tr:hover { background: #f4f8ff; }
 
   #dash-grid, #wl-alerts-grid { grid-template-columns: 1fr !important; }
   .score-cards { grid-template-columns: repeat(2, 1fr); }
+  .sig-levels { grid-template-columns: repeat(2, 1fr); }
   .grid[style*='2.1fr'] { grid-template-columns: 1fr !important; }
   .grid[style*='1fr 1fr'] { grid-template-columns: 1fr !important; }
   .grid[style*='1.3fr'] { grid-template-columns: 1fr !important; }
