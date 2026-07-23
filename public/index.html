@@ -73,7 +73,28 @@
     <a href="#/gold" data-nav="gold"><span class="ti"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5h8l2 3H6l2-3Z"/><rect x="4" y="9" width="7" height="4.5" rx="1"/><rect x="13" y="9" width="7" height="4.5" rx="1"/><rect x="8.5" y="14.5" width="7" height="4.5" rx="1"/></svg></span><span>Gold</span></a>
     <a href="#/portfolio" data-nav="portfolio"><span class="ti"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 3.1V11h7.9A8 8 0 0 0 13 3.1Z"/><path d="M11 5.1A8 8 0 1 0 19.9 15H11V5.1Z"/></svg></span><span>Portfolio</span></a>
     <a href="#/settings" data-nav="settings"><span class="ti"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311a1.464 1.464 0 0 1-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c1.4-.413 1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872l-.1-.34zM8 10.93a2.929 2.929 0 1 1 0-5.86 2.929 2.929 0 0 1 0 5.858z"/></svg></span><span>Settings</span></a>
+    <button class="mobile-more" id="mobile-more" type="button" aria-label="More tools" aria-expanded="false">
+      <span class="ti"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></span>
+      <span>More</span>
+    </button>
   </nav>
+
+  <div class="mobile-sheet-wrap hidden" id="mobile-sheet-wrap">
+    <button class="mobile-sheet-backdrop" id="mobile-sheet-backdrop" aria-label="Close menu"></button>
+    <section class="mobile-sheet" aria-label="More StockDesk tools">
+      <div class="mobile-sheet-handle"></div>
+      <div class="mobile-sheet-head">
+        <div><b>More tools</b><span>StockDesk Pro</span></div>
+        <button type="button" id="mobile-sheet-close" aria-label="Close menu">×</button>
+      </div>
+      <div class="mobile-sheet-grid">
+        <a href="#/gold" data-mobile-sheet-link><span class="ms-icon gold">◆</span><b>Gold &amp; Silver</b><small>Metals dashboard</small></a>
+        <a href="#/settings" data-mobile-sheet-link><span class="ms-icon settings">⚙</span><b>Settings</b><small>Kite &amp; security</small></a>
+        <button type="button" id="mobile-sheet-search"><span class="ms-icon search">⌕</span><b>Find a stock</b><small>NSE / BSE search</small></button>
+        <a href="#/ideas" data-mobile-sheet-link><span class="ms-icon ideas">✦</span><b>Idea scanner</b><small>Research candidates</small></a>
+      </div>
+    </section>
+  </div>
 
   <div id="toast-wrap"></div>
   <script>

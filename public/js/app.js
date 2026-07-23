@@ -200,7 +200,12 @@ async function refreshTicker() {
     if (e.key === 'ArrowDown') { sel = Math.min(sel + 1, items.length - 1); }
     else if (e.key === 'ArrowUp') { sel = Math.max(sel - 1, 0); }
     else if (e.key === 'Enter' && items[sel >= 0 ? sel : 0]) { go(items[sel >= 0 ? sel : 0].dataset.sym); return; }
-    else if (e.key === 'Escape') { hide(); return; }
+    else if (e.key === 'Escape') {
+      hide();
+      document.querySelector('.topbar')?.classList.remove('search-open');
+      input.blur();
+      return;
+    }
     else return;
     e.preventDefault();
     items.forEach((el, i) => el.classList.toggle('selected', i === sel));
@@ -237,6 +242,31 @@ async function refreshTicker() {
   });
 })();
 
+// ---------------- mobile navigation ----------------
+
+(function initMobileNavigation() {
+  const wrap = $('#mobile-sheet-wrap');
+  const more = $('#mobile-more');
+  if (!wrap || !more) return;
+
+  const setOpen = (open) => {
+    wrap.classList.toggle('hidden', !open);
+    document.body.classList.toggle('mobile-sheet-open', open);
+    more.setAttribute('aria-expanded', String(open));
+  };
+
+  more.addEventListener('click', () => setOpen(wrap.classList.contains('hidden')));
+  $('#mobile-sheet-backdrop')?.addEventListener('click', () => setOpen(false));
+  $('#mobile-sheet-close')?.addEventListener('click', () => setOpen(false));
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setOpen(false); });
+  $$('[data-mobile-sheet-link]').forEach((link) => link.addEventListener('click', () => setOpen(false)));
+  $('#mobile-sheet-search')?.addEventListener('click', () => {
+    setOpen(false);
+    document.querySelector('.topbar')?.classList.add('search-open');
+    setTimeout(() => $('#global-search')?.focus(), 80);
+  });
+})();
+
 // ---------------- router ----------------
 
 const routes = {
@@ -257,6 +287,10 @@ function route() {
   const page = parts[0] || 'dashboard';
   const navKey = routes[page] ? page : 'dashboard';
   $$('[data-nav]').forEach((a) => a.classList.toggle('active', a.dataset.nav === navKey));
+  $('#mobile-more')?.classList.toggle('active', ['gold', 'ideas', 'settings'].includes(navKey));
+  $('#mobile-sheet-wrap')?.classList.add('hidden');
+  document.body.classList.remove('mobile-sheet-open');
+  $('#mobile-more')?.setAttribute('aria-expanded', 'false');
   const view = $('#terminal-view');
   if (view) view.textContent = page === 'stock' && parts[1] ? `SECURITY // ${dispSym(decodeURIComponent(parts[1]))}` : navKey.toUpperCase();
   document.querySelector('.topbar')?.classList.remove('search-open');
@@ -306,6 +340,26 @@ function refreshTerminalRail() {
 
 async function renderDashboard() {
   app.innerHTML = `
+    <section class="mobile-launchpad">
+      <div class="ml-welcome">
+        <div>
+          <span>STOCKDESK MOBILE</span>
+          <b>Your market, one tap away</b>
+        </div>
+        <span class="ml-live ${marketState().cls}">${marketState().label}</span>
+      </div>
+      <button class="ml-search" id="mobile-launch-search" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <span><b>Find any Indian stock</b><small>Search NSE or BSE</small></span>
+        <i>›</i>
+      </button>
+      <div class="ml-grid">
+        <a href="#/portfolio"><span class="ml-icon portfolio">₹</span><b>Portfolio</b><small>Holdings &amp; risk</small></a>
+        <a href="#/signals"><span class="ml-icon signals">↗</span><b>Signals</b><small>Setups &amp; warnings</small></a>
+        <a href="#/markets"><span class="ml-icon markets">▥</span><b>Markets</b><small>Screener &amp; movers</small></a>
+        <a href="#/ideas"><span class="ml-icon ideas">✦</span><b>Top picks</b><small>Research scanner</small></a>
+      </div>
+    </section>
     <div class="dash-hero">
       <div class="dh-left">
         <div class="dh-greet">${istGreeting()}</div>
@@ -347,6 +401,11 @@ async function renderDashboard() {
         <div class="card-body" id="breadth"></div>
       </div>
     </div>`;
+
+  $('#mobile-launch-search')?.addEventListener('click', () => {
+    document.querySelector('.topbar')?.classList.add('search-open');
+    setTimeout(() => $('#global-search')?.focus(), 80);
+  });
 
   async function loadExtras() {
     // economic strip
@@ -1122,7 +1181,7 @@ async function renderStock(params) {
         </div>
         <div class="sh-meta" id="sh-meta"></div>
       </div>
-      <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap">
+      <div class="stock-actions" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap">
         <button class="btn" id="watch-btn" title="Add to watchlist">☆</button>
         <button class="btn" id="alert-btn" title="Set price alert">🔔</button>
         <button class="btn" id="add-pf-btn" ${commodity ? 'disabled title="Use the Gold & Silver Desk for MCX exposure"' : ''}>+ Add to Portfolio</button>
@@ -1766,12 +1825,12 @@ const PF_PALETTE = ['#2563eb', '#089c6c', '#f59e0b', '#8b5cf6', '#ec4899', '#14b
 
 async function renderPortfolio() {
   app.innerHTML = `
-    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:12px">
+    <div class="pf-page-head" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:12px">
       <div>
         <div class="page-title">Portfolio</div>
         <div class="page-sub" style="margin-bottom:0">Multi-account wealth terminal — live</div>
       </div>
-      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
+      <div class="pf-actions" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
         <button class="btn sm" id="pf-new">+ New</button>
         <button class="btn sm" id="pf-rename">Rename</button>
         <button class="btn sm danger-ghost" id="pf-delete">Delete</button>
