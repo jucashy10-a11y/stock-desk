@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>StockDesk — NSE · BSE Market Terminal</title>
-  <meta name="theme-color" content="#0f2a5c" />
+  <title>StockDesk Pro — Indian Market Workstation</title>
+  <meta name="theme-color" content="#06090d" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -23,7 +23,7 @@
       <a class="brand" href="#/">
         <svg viewBox="0 0 100 100" width="26" height="26"><rect width="100" height="100" rx="20" fill="#0f2a5c"/><path d="M20 70 L40 45 L55 58 L80 28" stroke="#00d09c" stroke-width="9" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
         <span>Stock<b>Desk</b></span>
-        <span class="brand-sub">NSE · BSE</span>
+        <span class="brand-sub">PRO // INDIA</span>
       </a>
       <nav class="nav">
         <a href="#/" data-nav="dashboard">Dashboard</a>
@@ -37,12 +37,24 @@
         <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
       </button>
       <div class="searchbox">
-        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-        <input id="global-search" type="text" placeholder="Search NSE / BSE stocks…" autocomplete="off" spellcheck="false" />
+        <span class="cmd-prefix">CMD</span>
+        <input id="global-search" type="text" placeholder="Security / symbol / command" autocomplete="off" spellcheck="false" />
+        <kbd>/</kbd>
         <div id="search-results" class="search-results hidden"></div>
       </div>
       <div class="conn-badge" id="conn-badge" title="Data source">
         <span class="dot"></span><span id="conn-label">—</span>
+      </div>
+    </div>
+    <div class="terminal-rail" aria-label="Workstation status">
+      <div class="terminal-rail-left">
+        <span class="terminal-mode">SDX // INDIA</span>
+        <span id="terminal-view">HOME</span>
+        <span id="terminal-session" class="terminal-session">SESSION</span>
+      </div>
+      <div class="terminal-rail-right">
+        <span class="terminal-hint">NAV <kbd>ALT</kbd> + <kbd>1–6</kbd></span>
+        <span id="terminal-clock">IST --:--:--</span>
       </div>
     </div>
     <div class="ticker-strip" id="ticker-strip"><div class="ticker-track" id="ticker-track"></div></div>

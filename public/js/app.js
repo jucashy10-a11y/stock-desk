@@ -218,6 +218,25 @@ async function refreshTicker() {
   });
 })();
 
+// ---------------- workstation keyboard ----------------
+
+(function initWorkstationKeys() {
+  const destinations = ['#/', '#/markets', '#/signals', '#/gold', '#/portfolio', '#/settings'];
+  document.addEventListener('keydown', (e) => {
+    const editing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || '');
+    if (e.key === '/' && !editing && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      document.querySelector('.topbar')?.classList.add('search-open');
+      $('#global-search')?.focus();
+      return;
+    }
+    if (e.altKey && !e.ctrlKey && !e.metaKey && /^[1-6]$/.test(e.key)) {
+      e.preventDefault();
+      location.hash = destinations[Number(e.key) - 1];
+    }
+  });
+})();
+
 // ---------------- router ----------------
 
 const routes = {
@@ -238,6 +257,8 @@ function route() {
   const page = parts[0] || 'dashboard';
   const navKey = routes[page] ? page : 'dashboard';
   $$('[data-nav]').forEach((a) => a.classList.toggle('active', a.dataset.nav === navKey));
+  const view = $('#terminal-view');
+  if (view) view.textContent = page === 'stock' && parts[1] ? `SECURITY // ${dispSym(decodeURIComponent(parts[1]))}` : navKey.toUpperCase();
   document.querySelector('.topbar')?.classList.remove('search-open');
   setPoll(null);
   window.scrollTo(0, 0);
@@ -265,6 +286,22 @@ function marketState() {
   if (mins >= 555 && mins <= 930) return { label: 'MARKET OPEN', cls: 'open', note: 'closes 15:30' };
   if (mins < 540) return { label: 'CLOSED', cls: 'closed', note: 'pre-open 9:00' };
   return { label: 'CLOSED', cls: 'closed', note: 'opens 9:15 next session' };
+}
+
+function refreshTerminalRail() {
+  const state = marketState();
+  const session = $('#terminal-session');
+  if (session) {
+    session.textContent = state.label;
+    session.className = `terminal-session ${state.cls}`;
+    session.title = state.note;
+  }
+  const clock = $('#terminal-clock');
+  if (clock) {
+    clock.textContent = `IST ${new Date().toLocaleTimeString('en-GB', {
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'Asia/Kolkata',
+    })}`;
+  }
 }
 
 async function renderDashboard() {
@@ -2551,8 +2588,10 @@ async function boot() {
   }
   refreshConnBadge();
   refreshTicker();
+  refreshTerminalRail();
   setInterval(refreshConnBadge, 30000);
   setInterval(refreshTicker, 30000);
+  setInterval(refreshTerminalRail, 1000);
   route();
 }
 
