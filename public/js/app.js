@@ -2573,9 +2573,13 @@ async function renderSettings() {
         </div>
       </div>
       <div class="card">
+        <div class="card-head"><span class="card-title">Telegram notifications</span><span id="tg-badge"></span></div>
+        <div class="card-body" id="tg-body"><div class="spinner"></div></div>
+      </div>
+      <div class="card">
         <div class="card-head"><span class="card-title">Terminal Security</span></div>
         <div class="card-body">
-          <p class="muted" style="font-size:.8rem;line-height:1.55;margin-top:0">Sessions expire after 12 hours. Lock the terminal when you finish on a shared device.</p>
+          <p class="muted" style="font-size:.8rem;line-height:1.55;margin-top:0">Your sign-in now lasts ~6 months per device and survives server restarts. Lock the terminal when you finish on a shared device.</p>
           <button class="btn danger-ghost" id="terminal-logout">Lock &amp; Sign Out</button>
         </div>
       </div>
@@ -2589,6 +2593,49 @@ async function renderSettings() {
     await api('/api/logout', { method: 'POST' });
     location.reload();
   };
+
+  async function loadTelegram() {
+    try {
+      const st = await api('/api/telegram/status');
+      $('#tg-badge').innerHTML = st.linked
+        ? '<span class="chg-pill up">● LINKED</span>'
+        : st.hasToken ? '<span class="chg-pill" style="background:var(--amber-bg,#fdf3e0);color:#a76b14">○ NOT LINKED</span>'
+        : '<span class="chg-pill down">○ OFF</span>';
+      $('#tg-body').innerHTML = `
+        <p class="muted" style="font-size:.8rem; line-height:1.55; margin-top:0">
+          Morning brief (8:40 IST), new high-quality setups, holdings risk warnings, alert hits and the daily
+          Kite-login reminder — pushed straight to your Telegram.
+        </p>
+        ${st.hasToken ? '' : `
+        <div class="field"><label>Bot token (from @BotFather)</label><input id="tg-token" placeholder="123456:ABC…" autocomplete="off" /></div>
+        <button class="btn primary sm" id="tg-save">Save token</button>`}
+        ${st.hasToken && !st.linked ? `
+        <div style="font-size:.8rem; margin-bottom:10px"><b>Link your chat:</b> open your bot in Telegram, press <b>START</b>, then tap the button below.</div>
+        <button class="btn primary sm" id="tg-link">I pressed Start — link me</button>` : ''}
+        ${st.linked ? `
+        <div style="display:flex; gap:8px; flex-wrap:wrap">
+          <button class="btn sm" id="tg-test">Send test message</button>
+        </div>` : ''}`;
+      const sv = $('#tg-save');
+      if (sv) sv.onclick = async () => {
+        try { await api('/api/telegram/setup', { method: 'POST', body: JSON.stringify({ token: $('#tg-token').value }) }); toast('Token saved', 'ok'); loadTelegram(); }
+        catch (e) { toast(e.message, 'err'); }
+      };
+      const lk = $('#tg-link');
+      if (lk) lk.onclick = async () => {
+        try { const r = await api('/api/telegram/link', { method: 'POST' }); toast(`Linked to ${r.name} 🎉`, 'ok'); loadTelegram(); }
+        catch (e) { toast(e.message, 'err'); }
+      };
+      const ts = $('#tg-test');
+      if (ts) ts.onclick = async () => {
+        const r = await api('/api/telegram/test', { method: 'POST' });
+        toast(r.ok ? 'Sent — check Telegram 📱' : 'Send failed — check the token/link', r.ok ? 'ok' : 'err');
+      };
+    } catch (e) {
+      $('#tg-body').innerHTML = `<div class="empty">${esc(e.message)}</div>`;
+    }
+  }
+  loadTelegram();
 
   async function loadKite() {
     const st = await api('/api/kite/status');

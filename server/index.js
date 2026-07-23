@@ -17,6 +17,7 @@ const ocr = require('./ocr');
 const signals = require('./signals');
 const ledger = require('./ledger');
 const alerts = require('./alerts');
+const telegram = require('./telegram');
 const gistsync = require('./gistsync');
 const fs = require('fs');
 const portfolio = require('./portfolio');
@@ -503,6 +504,48 @@ app.get('/api/peers/:symbol', wrap(async (req, res) => {
     .filter(Boolean);
   res.json({ sector: sector || 'Unknown', rows });
 }));
+
+// ---------- telegram delivery ----------
+
+app.get('/api/telegram/status', wrap(async (req, res) => res.json(telegram.status())));
+app.post('/api/telegram/setup', wrap(async (req, res) => res.json(telegram.setToken(req.body?.token))));
+app.post('/api/telegram/link', wrap(async (req, res) => res.json(await telegram.link())));
+app.post('/api/telegram/test', wrap(async (req, res) => {
+  const ok = await telegram.send('✅ <b>StockDesk connected.</b> Alerts, new setups, holdings warnings and the morning digest will arrive here.');
+  res.json({ ok });
+}));
+
+// every fired alert (price triggers + new-setup notifications) goes to the phone
+alerts.setNotifier((a) => {
+  const head = a.type === 'signal' ? '📊 <b>New setup</b>' : '🔔 <b>Alert hit</b>';
+  telegram.send(`${head} — <b>${dispSymName({ symbol: a.symbol })}</b>\n${a.triggerNote || a.label || ''}`);
+});
+
+/** 08:40 IST digest: regime, top setups, holdings warnings, Kite reminder. */
+async function morningDigest() {
+  try {
+    const sig = signals.peek();
+    const r = sig?.results;
+    const lines = ['☀️ <b>StockDesk morning brief</b>'];
+    if (r?.regime) lines.push(`${r.regime.regime === 'bull' ? '🟢' : '🔴'} ${r.regime.text}`);
+    if (r?.top?.length) {
+      lines.push('\n<b>Top setups:</b>');
+      for (const s of r.top.slice(0, 3)) {
+        lines.push(`• ${dispSymName(s)} — ${s.label} (Q${s.quality}) entry ₹${s.entry}, stop ₹${s.stop}, target ₹${s.target}`);
+      }
+    }
+    if (r?.warnings?.length) {
+      lines.push('\n<b>⚠ Your holdings at risk:</b>');
+      for (const w of r.warnings.slice(0, 4)) lines.push(`• ${dispSymName(w)} — ${w.label}`);
+    }
+    if (!kite.status().connected) {
+      lines.push('\n🔑 Kite is not connected — open Settings and log in for live prices today.');
+    }
+    await telegram.send(lines.join('\n'));
+  } catch (e) {
+    console.warn('[digest] failed:', e.message);
+  }
+}
 
 // ---------- alerts ----------
 
@@ -1096,7 +1139,7 @@ function istNow() {
   const d = new Date(Date.now() + 5.5 * 3600 * 1000);
   return { day: d.getUTCDay(), hour: d.getUTCHours(), min: d.getUTCMinutes(), mins: d.getUTCHours() * 60 + d.getUTCMinutes() };
 }
-let lastSignalScan = 0, lastNews = 0, lastIdeasScan = 0, lastSnapDate = '';
+let lastSignalScan = 0, lastNews = 0, lastIdeasScan = 0, lastSnapDate = '', lastDigestDate = '';
 function scheduleTick() {
   const t = istNow();
   const weekday = t.day >= 1 && t.day <= 5;
@@ -1123,6 +1166,12 @@ function scheduleTick() {
     lastNews = Date.now();
     buildNewsRadar().catch(() => {});
   }
+  // morning digest to Telegram, once per weekday ~08:40–09:00 IST
+  const todayIso = new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+  if (weekday && t.mins >= 520 && t.mins < 540 && lastDigestDate !== todayIso) {
+    lastDigestDate = todayIso;
+    morningDigest();
+  }
   // daily portfolio snapshot after close (weekdays); baseline immediately if none exists
   const today = new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
   const snaps = loadSnaps();
@@ -1137,7 +1186,7 @@ function scheduleTick() {
 
 Promise.allSettled([
   portfolio.cloudRestore(), kite.cloudRestore(), watchlistCloudRestore(),
-  alerts.cloudRestore(), ledger.cloudRestore(), snapshotsCloudRestore(),
+  alerts.cloudRestore(), ledger.cloudRestore(), snapshotsCloudRestore(), telegram.cloudRestore(),
 ]).finally(() => {
   alerts.startChecker(getQuotes, 60 * 1000);
   setInterval(scheduleTick, 5 * 60 * 1000);

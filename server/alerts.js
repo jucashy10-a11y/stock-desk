@@ -82,6 +82,15 @@ function remove(id) {
   save(load().filter((a) => a.id !== id));
 }
 
+// external delivery hook (e.g. Telegram) — called with each newly fired alert
+let onFire = null;
+function setNotifier(fn) { onFire = fn; }
+function fireHook(alert) {
+  if (typeof onFire === 'function') {
+    try { onFire(alert); } catch { /* delivery must never break alerting */ }
+  }
+}
+
 /**
  * Pre-triggered notification (used by the signal→alert bridge): lands in the
  * alerts feed already "fired" so new setups surface without opening Signals.
@@ -104,6 +113,7 @@ function notify({ symbol, name, note }) {
     triggerNote: note,
   };
   alerts.push(a);
+  fireHook(a);
   // keep the signal-notification backlog bounded
   const sigs = alerts.filter((x) => x.type === 'signal').sort((x, y) => y.triggeredAt - x.triggeredAt);
   if (sigs.length > 20) {
@@ -153,6 +163,7 @@ async function check(getQuotes) {
       a.triggeredAt = Date.now();
       a.triggerNote = `${describe(a)} — hit at ₹${q.price}`;
       changed = true;
+      fireHook(a);
     }
   }
   if (changed) save(alerts);
@@ -164,4 +175,4 @@ function startChecker(getQuotes, everyMs = 60 * 1000) {
   timer = setInterval(() => check(getQuotes).catch(() => {}), everyMs);
 }
 
-module.exports = { list, add, remove, reset, notify, cloudRestore, startChecker, check };
+module.exports = { list, add, remove, reset, notify, setNotifier, cloudRestore, startChecker, check };
