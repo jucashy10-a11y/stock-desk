@@ -51,6 +51,7 @@ function importSession({ accessToken, tokenDate, userName, apiKey, apiSecret }) 
   cfg.tokenDate = tokenDate;
   cfg.userName = userName || cfg.userName || '';
   cfg.disconnectReason = '';
+  cfg.disconnectedAt = null;
   save(cfg);
   return status();
 }
@@ -123,6 +124,7 @@ function status() {
     tokenDate: cfg.tokenDate || null,
     expiresAt: connected ? sessionExpiresAt() : null,
     reason,
+    disconnectedAt: cfg.disconnectedAt || null,
     lastSuccessAt: runtimeHealth.lastSuccessAt,
     lastErrorAt: runtimeHealth.lastErrorAt,
     lastError: runtimeHealth.lastError,
@@ -146,6 +148,7 @@ function setCredentials(apiKey, apiSecret) {
     cfg.accessToken = '';
     cfg.tokenDate = '';
     cfg.disconnectReason = 'credentials_changed';
+    cfg.disconnectedAt = Date.now();
   }
   save(cfg);
   return status();
@@ -157,8 +160,18 @@ function disconnect(reason = 'manual') {
   cfg.tokenDate = '';
   cfg.userName = '';
   cfg.disconnectReason = reason;
+  cfg.disconnectedAt = Date.now();
   save(cfg);
   return status();
+}
+
+/**
+ * A device capsule may recover an otherwise empty ephemeral Render instance,
+ * but it must never override an intentional disconnect, changed credentials,
+ * a rejected token, or the mandatory daily expiry.
+ */
+function canRestoreFromDevice(reason) {
+  return reason === 'not_connected' || reason === 'missing_key';
 }
 
 /** Exchange request_token for access_token. */
@@ -190,6 +203,7 @@ async function createSession(requestToken) {
   cfg.tokenDate = currentSessionDate();
   cfg.userName = j.data.user_name || j.data.user_id || '';
   cfg.disconnectReason = '';
+  cfg.disconnectedAt = null;
   save(cfg);
   runtimeHealth = { lastSuccessAt: Date.now(), lastErrorAt: null, lastError: null, lastErrorType: null };
   return status();
@@ -447,6 +461,7 @@ module.exports = {
   currentSessionDate,
   sessionExpiresAt,
   shouldInvalidateSession,
+  canRestoreFromDevice,
   sessionSnapshot,
   recoveryKeyMaterial,
 };

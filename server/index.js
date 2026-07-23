@@ -123,13 +123,14 @@ function openKiteSession(value) {
 
 function setKiteRecoveryCookie(req, res) {
   const capsule = sealKiteSession(kite.sessionSnapshot());
-  if (!capsule) return;
+  if (!capsule) return false;
   const secure = req.headers['x-forwarded-proto'] === 'https' ? '; Secure' : '';
   const maxAge = Math.max(60, Math.floor((kite.sessionExpiresAt() - Date.now()) / 1000));
   res.append(
     'Set-Cookie',
     `${KITE_CAPSULE_COOKIE}=${capsule}; Path=/api; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure}`
   );
+  return true;
 }
 
 function clearKiteRecoveryCookie(req, res) {
@@ -141,9 +142,14 @@ function clearKiteRecoveryCookie(req, res) {
 }
 
 function restoreKiteFromDevice(req, res) {
-  if (kite.status().connected) return;
+  const current = kite.status();
+  if (current.connected) return;
   const capsule = cookieValue(req, KITE_CAPSULE_COOKIE);
   if (!capsule) return;
+  if (!kite.canRestoreFromDevice(current.reason)) {
+    clearKiteRecoveryCookie(req, res);
+    return;
+  }
   try {
     kite.importSession(openKiteSession(capsule));
     console.log('[kite] restored current session from encrypted device capsule');
@@ -1123,9 +1129,15 @@ app.post('/api/ocr/trades', wrap(async (req, res) => {
 // ---------- kite ----------
 
 app.get('/api/kite/status', wrap(async (req, res) => {
+  // Seed/refresh recovery on every device that uses the connected terminal,
+  // not only the browser that happened to complete Zerodha's redirect. This
+  // makes phones survive an intraday Render restart too.
+  const current = kite.status();
+  let deviceBackup = !!cookieValue(req, KITE_CAPSULE_COOKIE);
+  if (current.connected) deviceBackup = setKiteRecoveryCookie(req, res) || deviceBackup;
   res.json({
-    ...kite.status(),
-    deviceBackup: !!cookieValue(req, KITE_CAPSULE_COOKIE),
+    ...current,
+    deviceBackup,
   });
 }));
 

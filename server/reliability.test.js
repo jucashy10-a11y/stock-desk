@@ -2,7 +2,10 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 const { safeStop, MAX_STOP_PCT } = require('./signals');
-const { parseKiteTime, currentSessionDate, sessionExpiresAt, shouldInvalidateSession } = require('./kite');
+const {
+  parseKiteTime, currentSessionDate, sessionExpiresAt,
+  shouldInvalidateSession, canRestoreFromDevice,
+} = require('./kite');
 const { evaluateEntries, wilsonInterval } = require('./ledger');
 const { computeHoldings } = require('./portfolio');
 const datahealth = require('./datahealth');
@@ -31,6 +34,12 @@ assert.strictEqual(
 assert.strictEqual(shouldInvalidateSession(403, 'PermissionException', 'Insufficient permission'), false);
 assert.strictEqual(shouldInvalidateSession(403, 'TokenException', 'Invalid session'), true);
 assert.strictEqual(shouldInvalidateSession(401, null, 'Access token is expired'), true);
+assert.strictEqual(canRestoreFromDevice('not_connected'), true);
+assert.strictEqual(canRestoreFromDevice('missing_key'), true);
+assert.strictEqual(canRestoreFromDevice('token_rejected'), false);
+assert.strictEqual(canRestoreFromDevice('credentials_changed'), false);
+assert.strictEqual(canRestoreFromDevice('manual'), false);
+assert.strictEqual(canRestoreFromDevice('daily_expiry'), false);
 
 // Embedded Top Picks must not assign onclick to its intentionally absent
 // standalone refresh button.
