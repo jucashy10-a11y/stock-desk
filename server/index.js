@@ -24,6 +24,25 @@ const { INDICES, UNIVERSE } = require('./symbols');
 const app = express();
 const PORT = process.env.PORT || 3210;
 
+app.disable('x-powered-by');
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  if ((req.headers['x-forwarded-proto'] || '').toLowerCase() === 'https') {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; " +
+    "script-src 'self' 'unsafe-inline' https://unpkg.com; " +
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+    "font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; " +
+    "connect-src 'self'; form-action 'self' https://kite.zerodha.com"
+  );
+  next();
+});
 app.use(express.json({ limit: '14mb' }));
 app.use(express.text({ type: 'text/csv', limit: '5mb' }));
 app.use(express.static(path.join(__dirname, '..', 'public')));
@@ -35,28 +54,68 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
  */
 const crypto = require('crypto');
 const APP_PASSWORD = process.env.APP_PASSWORD || '';
-const AUTH_TOKEN = APP_PASSWORD
-  ? crypto.createHash('sha256').update('stockdesk-v1:' + APP_PASSWORD).digest('hex')
-  : null;
+const SESSION_MS = 12 * 60 * 60 * 1000;
+const sessions = new Map();
+const loginFailures = new Map();
+const cookieValue = (req, name) => {
+  const part = String(req.headers.cookie || '').split(';').map((s) => s.trim())
+    .find((s) => s.startsWith(name + '='));
+  return part ? decodeURIComponent(part.slice(name.length + 1)) : '';
+};
+const requestIp = (req) => String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '')
+  .split(',')[0].trim();
+function sameSecret(a, b) {
+  const ah = crypto.createHash('sha256').update(String(a)).digest();
+  const bh = crypto.createHash('sha256').update(String(b)).digest();
+  return crypto.timingSafeEqual(ah, bh);
+}
 
 app.post('/api/login', (req, res) => {
   if (!APP_PASSWORD) return res.json({ ok: true, open: true });
-  if (String(req.body?.password || '') === APP_PASSWORD) {
+  const ip = requestIp(req);
+  const state = loginFailures.get(ip) || { count: 0, resetAt: Date.now() + 15 * 60 * 1000 };
+  if (Date.now() > state.resetAt) {
+    state.count = 0;
+    state.resetAt = Date.now() + 15 * 60 * 1000;
+  }
+  if (state.count >= 8) {
+    res.setHeader('Retry-After', String(Math.ceil((state.resetAt - Date.now()) / 1000)));
+    return res.status(429).json({ error: 'Too many login attempts. Try again later.' });
+  }
+  if (sameSecret(req.body?.password || '', APP_PASSWORD)) {
+    loginFailures.delete(ip);
+    const token = crypto.randomBytes(32).toString('base64url');
+    sessions.set(token, Date.now() + SESSION_MS);
     const secure = req.headers['x-forwarded-proto'] === 'https' ? '; Secure' : '';
     res.setHeader(
       'Set-Cookie',
-      `sd_auth=${AUTH_TOKEN}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${180 * 24 * 3600}${secure}`
+      `sd_auth=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_MS / 1000}${secure}`
     );
     return res.json({ ok: true });
   }
+  state.count++;
+  loginFailures.set(ip, state);
   res.status(401).json({ error: 'Wrong password' });
 });
 
 app.use('/api', (req, res, next) => {
   if (!APP_PASSWORD) return next();
-  if (req.path === '/login' || req.path === '/kite/callback' || req.path === '/health') return next();
-  if ((req.headers.cookie || '').includes('sd_auth=' + AUTH_TOKEN)) return next();
+  // /kite/callback stays open: Zerodha redirects the browser here after its own
+  // login and the app session may be absent/expired at that moment.
+  if (req.path === '/login' || req.path === '/health' || req.path === '/kite/callback') return next();
+  const token = cookieValue(req, 'sd_auth');
+  const expiresAt = sessions.get(token);
+  if (expiresAt && expiresAt > Date.now()) return next();
+  if (token) sessions.delete(token);
   res.status(401).json({ error: 'auth required' });
+});
+
+app.post('/api/logout', (req, res) => {
+  const token = cookieValue(req, 'sd_auth');
+  if (token) sessions.delete(token);
+  const secure = req.headers['x-forwarded-proto'] === 'https' ? '; Secure' : '';
+  res.setHeader('Set-Cookie', `sd_auth=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure}`);
+  res.json({ ok: true });
 });
 
 /** Public heartbeat — used by the keep-alive self-ping and uptime monitors. */
@@ -91,6 +150,31 @@ const wrap = (fn) => (req, res) =>
  */
 const quoteCache = new Map(); // symbol -> { at, q }
 const QUOTE_TTL_MS = 6000;
+const supplementalQuoteCache = new Map(); // slow-moving Yahoo metadata for live Kite quotes
+const SUPPLEMENTAL_TTL_MS = 15 * 60 * 1000;
+const SUPPLEMENTAL_FIELDS = [
+  'yearHigh', 'yearLow', 'marketCap', 'pe', 'eps', 'bookValue', 'divYield',
+  'avgVolume3m', 'fiftyDayAvg', 'twoHundredDayAvg', 'marketState',
+];
+
+async function getSupplementalQuotes(symbols) {
+  const now = Date.now();
+  const out = {};
+  const stale = [];
+  for (const s of symbols) {
+    const hit = supplementalQuoteCache.get(s);
+    if (hit && now - hit.at < SUPPLEMENTAL_TTL_MS) out[s] = hit.q;
+    else stale.push(s);
+  }
+  if (stale.length) {
+    const fetched = await yahoo.quotes(stale).catch(() => ({}));
+    for (const [s, q] of Object.entries(fetched)) {
+      supplementalQuoteCache.set(s, { at: now, q });
+      out[s] = q;
+    }
+  }
+  return out;
+}
 
 /**
  * Kite's feed only carries tradingsymbols ("HCLTECH"), no company names.
@@ -130,6 +214,19 @@ async function fetchQuotesUncached(symbols) {
   if (missing.length) {
     const y = await yahoo.quotes(missing);
     out = { ...y, ...out };
+  }
+  const liveSymbols = symbols.filter((s) => out[s]?.source === 'kite');
+  if (liveSymbols.length) {
+    const supplemental = await getSupplementalQuotes(liveSymbols);
+    for (const s of liveSymbols) {
+      const q = out[s];
+      const y = supplemental[s];
+      if (!q || !y) continue;
+      for (const field of SUPPLEMENTAL_FIELDS) {
+        if (q[field] == null && y[field] != null) q[field] = y[field];
+      }
+      q.supplementalSource = 'yahoo';
+    }
   }
   return enrichNames(out);
 }
@@ -187,6 +284,12 @@ app.get('/api/market', wrap(async (req, res) => {
     losers: sorted.slice(-8).reverse(),
     breadth: { advances, declines, unchanged: rows.length - advances - declines },
     source: rows.some((r) => r.quote.source === 'kite') ? 'kite' : 'yahoo',
+    universeHealth: {
+      expected: UNIVERSE.length,
+      loaded: rows.length,
+      failed: UNIVERSE.filter((u) => !quotes[u.symbol]?.price).map((u) => u.symbol),
+    },
+    generatedAt: Date.now(),
   });
 }));
 
@@ -457,6 +560,13 @@ function portfolioInsights(rows) {
   const worst = withPnl.length ? withPnl.reduce((a, b) => (b.pnlPct < a.pnlPct ? b : a)) : null;
 
   const insights = [];
+  const anomalous = rows.filter((h) => h.qualityFlags?.length);
+  if (anomalous.length) {
+    insights.push({
+      level: 'warn',
+      text: `${anomalous.length} holdings need reconciliation for symbol, cost-basis, corporate-action or missing-price anomalies.`,
+    });
+  }
   if (sorted[0] && sorted[0].value / total > 0.25) {
     insights.push({ level: 'warn', text: `${dispSymName(sorted[0])} alone is ${((sorted[0].value / total) * 100).toFixed(0)}% of the book — heavy single-stock concentration.` });
   }
@@ -468,8 +578,13 @@ function portfolioInsights(rows) {
   if (topRealSector && topRealSector.pct > 30) {
     insights.push({ level: 'warn', text: `${topRealSector.pct.toFixed(0)}% is in ${topRealSector.name} — heavy exposure to one sector.` });
   }
-  if (valued.length > 40) {
-    insights.push({ level: 'info', text: `${valued.length} holdings — quite spread out; returns will track the index closely (over-diversified).` });
+  if (valued.length > 40 && top2 / total > 0.5) {
+    insights.push({
+      level: 'warn',
+      text: `Barbell portfolio: the top 2 dominate ${((top2 / total) * 100).toFixed(0)}% while ${valued.length - 2} smaller positions add operational complexity.`,
+    });
+  } else if (valued.length > 40) {
+    insights.push({ level: 'info', text: `${valued.length} holdings — broad diversification; compare performance and risk with a suitable benchmark.` });
   } else if (valued.length > 0 && valued.length <= 5) {
     insights.push({ level: 'info', text: `Just ${valued.length} holdings — concentrated book, higher risk and higher reward.` });
   }
@@ -497,11 +612,22 @@ function valueHoldings(holdings, quotes) {
     const ltp = q?.price ?? null;
     const value = ltp != null ? ltp * h.qty : null;
     const pnl = value != null ? value - h.invested : null;
+    const pnlPct = pnl != null && h.invested > 0 ? (pnl / h.invested) * 100 : null;
     const dayChg = q?.change != null ? q.change * h.qty : null;
     invested += h.invested;
     current += value != null ? value : h.invested;
     if (dayChg != null) dayPnl += dayChg;
     realized += h.realized || 0;
+    const qualityFlags = [];
+    if (!q?.price) qualityFlags.push('missing live price');
+    if (!Number.isFinite(h.avgPrice) || h.avgPrice <= 0) qualityFlags.push('invalid average cost');
+    if (pnlPct != null && (pnlPct > 500 || pnlPct < -95)) {
+      qualityFlags.push('extreme return; verify corporate actions and cost basis');
+    }
+    if (/0P000|\.NS,|\.BO,/i.test(h.name || '')) qualityFlags.push('malformed imported security name');
+    if (ltp && h.avgPrice > 0 && (ltp / h.avgPrice > 8 || ltp / h.avgPrice < 0.08)) {
+      qualityFlags.push('price/cost ratio needs reconciliation');
+    }
     return {
       ...h,
       ltp,
@@ -509,10 +635,11 @@ function valueHoldings(holdings, quotes) {
       dayPnl: dayChg,
       value,
       pnl,
-      pnlPct: pnl != null && h.invested > 0 ? (pnl / h.invested) * 100 : null,
+      pnlPct,
       // stored name (from import resolution) beats Kite's bare tradingsymbol
       quoteName: (h.name && h.name !== h.symbol ? h.name : q?.name) || h.name,
       source: q?.source || null,
+      qualityFlags: [...new Set(qualityFlags)],
     };
   });
   return {
@@ -523,6 +650,7 @@ function valueHoldings(holdings, quotes) {
       pnlPct: invested > 0 ? ((current - invested) / invested) * 100 : 0,
       dayPnl, realized,
       count: rows.length,
+      dataQualityIssues: rows.filter((h) => h.qualityFlags.length).length,
     },
   };
 }

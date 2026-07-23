@@ -88,6 +88,14 @@ function fx(v, dec = 1, suf = '') { return typeof v === 'number' && isFinite(v) 
 function arrow(n) { return n > 0 ? '▲' : n < 0 ? '▼' : '•'; }
 function esc(s) { return String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 function dispSym(s) { return s.replace(/\.(NS|BO)$/, ''); }
+function istTime(value = Date.now()) {
+  return new Date(value).toLocaleTimeString('en-IN', {
+    hour: 'numeric', minute: '2-digit', second: '2-digit', timeZone: 'Asia/Kolkata',
+  });
+}
+function currencyPrefix(code) {
+  return code === 'USD' ? '$' : code === 'EUR' ? '€' : code === 'GBP' ? '£' : '₹';
+}
 
 function toast(msg, type = '') {
   const t = document.createElement('div');
@@ -270,7 +278,7 @@ async function renderDashboard() {
     </div>
     <div class="grid" style="grid-template-columns: 1fr 1fr; align-items:start" id="dash-grid">
       <div class="card">
-        <div class="card-head"><span class="card-title">Top Gainers</span><span class="muted" style="font-size:.72rem">universe: NIFTY-150</span></div>
+        <div class="card-head"><span class="card-title">Top Gainers</span><span class="muted" style="font-size:.72rem">India core watch universe</span></div>
         <div id="gainers"><div class="spinner"></div></div>
       </div>
       <div class="card">
@@ -402,7 +410,7 @@ async function renderDashboard() {
         <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:.76rem" class="muted">
           <span><b class="up">${b.advances}</b> Advances</span><span><b class="down">${b.declines}</b> Declines</span>
         </div>`;
-      $('#dash-sub').innerHTML = `Indian equities at a glance — data source: <b>${market.source === 'kite' ? 'Zerodha Kite (LIVE)' : 'Yahoo Finance (delayed ~15 min)'}</b> · updated ${new Date().toLocaleTimeString('en-IN')}`;
+      $('#dash-sub').innerHTML = `Indian equities at a glance — data source: <b>${market.source === 'kite' ? 'Zerodha Kite (LIVE)' : 'Yahoo Finance (delayed ~15 min)'}</b> · updated ${istTime()}`;
     } catch (e) {
       toast('Failed to load market data: ' + e.message, 'err');
     }
@@ -419,7 +427,7 @@ let marketSort = { key: 'changePct', dir: -1 };
 async function renderMarkets() {
   app.innerHTML = `
     <div class="page-title">All Stocks</div>
-    <div class="page-sub">NIFTY-150 universe with live prices — click any column to sort, use the search bar (top) for any other NSE/BSE stock</div>
+    <div class="page-sub">Curated Indian large- and mid-cap watch universe with live prices — click any column to sort, use the search bar (top) for any other NSE/BSE stock<br/><span id="mkt-health"></span></div>
     <div class="card">
       <div class="card-head" style="gap:8px; flex-wrap:wrap">
         <input id="mkt-filter" placeholder="Filter name / symbol / sector…" class="tbl-filter" style="width:min(280px, 48vw)" />
@@ -535,6 +543,9 @@ async function renderMarkets() {
     try {
       const m = await api('/api/market');
       rows = m.rows;
+      const health = m.universeHealth || { expected: rows.length, loaded: rows.length, failed: [] };
+      const missing = health.failed?.length ? ` · ${health.failed.length} unavailable: ${health.failed.map(dispSym).join(', ')}` : '';
+      $('#mkt-health').innerHTML = `<b>${health.loaded}/${health.expected}</b> loaded · ${m.source === 'kite' ? 'Kite live + Yahoo reference fields' : 'Yahoo delayed'}${missing}`;
       draw();
     } catch (e) {
       $('#mkt-table').innerHTML = `<div class="empty">Failed to load: ${esc(e.message)}</div>`;
@@ -585,6 +596,7 @@ async function renderSignals() {
   function setupCard(s) {
     const sym = dispSym(s.symbol);
     const rrColor = s.rr >= 2.5 ? 'var(--green)' : s.rr >= 1.8 ? 'var(--amber)' : 'var(--muted)';
+    const exampleQty = s.riskPerShare > 0 ? Math.floor(10000 / s.riskPerShare) : 0;
     return `<div class="sig-card" onclick="location.hash='#/stock/${encodeURIComponent(s.symbol)}'">
       <div class="sig-head">
         <div><span class="s-sym" style="font-size:.95rem">${esc(sym)}</span>
@@ -598,7 +610,14 @@ async function renderSignals() {
         <div class="sl"><span>TARGET</span><b class="up">₹${inr(s.target)} <small>+${s.targetPct}%</small></b></div>
         <div class="sl"><span>R:R</span><b style="color:${rrColor}">${s.rr} : 1</b></div>
       </div>
-      <div class="sig-meta"><span>Hist. hit-rate ~${s.hitRate}%</span><span>RSI ${s.rsi ?? '—'}</span><span>Vol ${s.volMult}×</span></div>
+      <div class="sig-meta">
+        <span title="Unvalidated rule prior; not a backtest">Rule prior ~${s.referenceRate ?? '—'}%</span>
+        <span>Risk ${fx(s.riskPct, 2, '%')}</span>
+        <span title="Illustrative only: ₹10,000 divided by entry-minus-stop">₹10k-risk qty ${inr(exampleQty, 0)}</span>
+        <span>Expires ${s.expirySessions ?? 5} sessions</span>
+        <span>RSI ${s.rsi ?? '—'}</span>
+        <span>Vol ${s.volMult}×</span>
+      </div>
       <ul class="pt-list" style="margin-top:8px">
         ${s.reasons.map((r) => `<li class="pos"><span class="ico">+</span><span style="font-size:.76rem">${esc(r)}</span></li>`).join('')}
       </ul>
@@ -624,7 +643,7 @@ async function renderSignals() {
       return;
     }
     const r = st.results;
-    $('#sig-sub').textContent = `${r.totalSetups} live setups across ${r.scanned} charts · updated ${new Date(st.builtAt).toLocaleTimeString('en-IN')} · auto-refreshes`;
+    $('#sig-sub').textContent = `${r.totalSetups} live setups across ${r.scanned} charts · updated ${istTime(st.builtAt)} · auto-refreshes`;
     $('#sig-body').innerHTML = `
       <div style="display:flex; justify-content:flex-end; margin-bottom:10px"><button class="btn sm" id="sig-rescan">↻ Re-scan now</button></div>
       ${r.groups.map((g) => `<div style="margin-bottom:22px">
@@ -658,7 +677,12 @@ async function renderSignals() {
     setPoll(null);
     if (tab === 'setups') loadSetups(false);
     else if (tab === 'news') loadNews();
-    else { $('#sig-body').innerHTML = '<div id="ideas-embed"></div>'; renderIdeasInto('#ideas-embed'); }
+    else {
+      $('#sig-body').innerHTML = '<div id="ideas-embed"></div>';
+      renderIdeasInto('#ideas-embed').catch((e) => {
+        $('#sig-body').innerHTML = `<div class="card"><div class="empty">Top Picks unavailable: ${esc(e.message)}</div></div>`;
+      });
+    }
   }
   render();
 }
@@ -687,8 +711,6 @@ async function renderIdeasInto(container) {
 
   const refresh = $('#ideas-refresh');
   if (refresh) refresh.onclick = () => { loadIdeas(true); };
-
-  $('#ideas-refresh').onclick = () => { loadIdeas(true); };
 
   function pickCard(p, horizon) {
     const upLabel = horizon === 'short' ? '3-month view' : horizon === 'twoX' ? '4-year base-case model' : '12-month view';
@@ -830,6 +852,14 @@ async function renderCommodities() {
             <div class="muted" style="font-size:.68rem; font-weight:700; letter-spacing:.6px">TECH SCORE</div>
             <div class="num" style="font-size:1.2rem; font-weight:800">${m.score}/100</div>
           </div>
+          <div>
+            <div class="muted" style="font-size:.68rem; font-weight:700; letter-spacing:.6px">MCX VS INTL BASIS</div>
+            <div class="num" style="font-size:1.2rem; font-weight:700">${pct(m.localBasisPct)}</div>
+          </div>
+          ${m.live ? `<div>
+            <div class="muted" style="font-size:.68rem; font-weight:700; letter-spacing:.6px">OPEN INTEREST</div>
+            <div class="num" style="font-size:1.2rem; font-weight:700">${volShort(m.mcxOi)}</div>
+          </div>` : ''}
         </div>
 
         <div class="cmd-signal ${sigClass}">
@@ -856,7 +886,7 @@ async function renderCommodities() {
         </div>
 
         <div style="display:flex; gap:10px; flex-wrap:wrap">
-          <button class="btn sm" onclick="location.hash='#/stock/${chartSymbol}'">📈 Full chart &amp; research</button>
+          <button class="btn sm" onclick="location.hash='#/stock/${chartSymbol}'">📈 COMEX chart</button>
         </div>
       </div>
     </div>`;
@@ -865,7 +895,7 @@ async function renderCommodities() {
   async function load() {
     try {
       const d = await api('/api/commodities');
-      $('#cmd-sub').innerHTML = `USDINR <b class="num">₹${inr(d.usdinr)}</b> · updated ${new Date(d.generatedAt).toLocaleTimeString('en-IN')} · refreshes every minute`;
+      $('#cmd-sub').innerHTML = `USDINR <b class="num">₹${inr(d.usdinr)}</b> · updated ${istTime(d.generatedAt)} · refreshes every minute`;
       $('#cmd-body').innerHTML = `
         ${metalCard(d.gold, 'GOLD', '🟡', 'GC%3DF')}
         ${metalCard(d.silver, 'SILVER', '⚪', 'SI%3DF')}
@@ -885,6 +915,11 @@ let chartObjs = null;
 async function renderStock(params) {
   const symbol = params[0];
   if (!symbol) return renderDashboard();
+  const commodityMeta = {
+    'GC=F': { label: 'COMEX Gold futures', unit: 'USD per troy ounce' },
+    'SI=F': { label: 'COMEX Silver futures', unit: 'USD per troy ounce' },
+  };
+  const commodity = commodityMeta[symbol] || null;
 
   app.innerHTML = `
     <div class="stock-head">
@@ -899,17 +934,17 @@ async function renderStock(params) {
       <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap">
         <button class="btn" id="watch-btn" title="Add to watchlist">☆</button>
         <button class="btn" id="alert-btn" title="Set price alert">🔔</button>
-        <button class="btn" id="add-pf-btn">+ Add to Portfolio</button>
+        <button class="btn" id="add-pf-btn" ${commodity ? 'disabled title="Use the Gold & Silver Desk for MCX exposure"' : ''}>+ Add to Portfolio</button>
         <button class="research-cta" id="research-btn">
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/><path d="M8 11h6M11 8v6"/></svg>
-          Research this Company
+          ${commodity ? 'Open Commodity Desk' : 'Research this Company'}
         </button>
       </div>
     </div>
 
     <div class="stock-tabs" id="stock-tabs">
       <button data-tab="overview" class="active">Overview</button>
-      <button data-tab="research">Research</button>
+      <button data-tab="research" ${commodity ? 'style="display:none"' : ''}>Research</button>
       <button data-tab="news">News</button>
     </div>
 
@@ -928,7 +963,7 @@ async function renderStock(params) {
           <div class="stat-grid" id="stat-grid"></div>
         </div>
       </div>
-      <div class="card" id="about-card" style="margin-top:18px"><div class="card-head"><span class="card-title">About the Company</span></div><div class="card-body" id="about-body"><div class="spinner"></div></div></div>
+      <div class="card" id="about-card" style="margin-top:18px"><div class="card-head"><span class="card-title">${commodity ? 'Instrument Details' : 'About the Company'}</span></div><div class="card-body" id="about-body"><div class="spinner"></div></div></div>
     </div>
 
     <div data-panel="research" class="hidden">
@@ -1033,10 +1068,11 @@ async function renderStock(params) {
     try {
       const q = (await api('/api/quotes?symbols=' + encodeURIComponent(symbol)))[symbol];
       if (!q) return;
+      const prefix = currencyPrefix(q.currency);
       $('#sh-name').innerHTML = `${esc(q.name)} <span class="exch-tag ${q.exchange === 'BSE' ? 'bse' : ''}">${esc(q.exchange || '')}</span>
         ${q.source === 'kite' ? '<span class="exch-tag" style="background:#e7f7f1;color:#089c6c">LIVE</span>' : ''}`;
       const pEl = $('#sh-price');
-      pEl.textContent = '₹' + inr(q.price);
+      pEl.textContent = prefix + inr(q.price);
       if (lastPrice != null && q.price !== lastPrice) {
         pEl.classList.remove('flash-up', 'flash-down');
         void pEl.offsetWidth;
@@ -1045,22 +1081,22 @@ async function renderStock(params) {
       lastPrice = q.price;
       $('#sh-chg').className = 'sh-chg ' + cls(q.changePct);
       $('#sh-chg').textContent = `${arrow(q.changePct)} ${inr(Math.abs(q.change))} (${pct(q.changePct)})`;
-      $('#sh-meta').textContent = `${dispSym(symbol)} · ${q.source === 'kite' ? 'Zerodha Kite live' : 'Yahoo Finance'} · as of ${new Date(q.time).toLocaleTimeString('en-IN')}`;
+      $('#sh-meta').textContent = `${dispSym(symbol)} · ${q.source === 'kite' ? 'Zerodha Kite live' : 'Yahoo Finance'} · as of ${istTime(q.time)} IST`;
       const stats = [
-        ['Open', q.open != null ? '₹' + inr(q.open) : '—'],
-        ['Prev Close', '₹' + inr(q.prevClose)],
-        ['Day High', '₹' + inr(q.dayHigh)],
-        ['Day Low', '₹' + inr(q.dayLow)],
-        ['52W High', q.yearHigh ? '₹' + inr(q.yearHigh) : '—'],
-        ['52W Low', q.yearLow ? '₹' + inr(q.yearLow) : '—'],
+        ['Open', q.open != null ? prefix + inr(q.open) : '—'],
+        ['Prev Close', prefix + inr(q.prevClose)],
+        ['Day High', prefix + inr(q.dayHigh)],
+        ['Day Low', prefix + inr(q.dayLow)],
+        ['52W High', q.yearHigh ? prefix + inr(q.yearHigh) : '—'],
+        ['52W Low', q.yearLow ? prefix + inr(q.yearLow) : '—'],
         ['Volume', volShort(q.volume)],
-        ['Mkt Cap', q.marketCap ? '₹' + inrShort(q.marketCap) : '—'],
+        ['Mkt Cap', q.marketCap ? prefix + inrShort(q.marketCap) : '—'],
         ['P/E (TTM)', q.pe != null ? q.pe.toFixed(1) : '—'],
-        ['EPS (TTM)', q.eps != null ? '₹' + inr(q.eps) : '—'],
+        ['EPS (TTM)', q.eps != null ? prefix + inr(q.eps) : '—'],
         ['Div Yield', q.divYield != null ? q.divYield.toFixed(2) + '%' : '—'],
-        ['Book Value', q.bookValue != null ? '₹' + inr(q.bookValue) : '—'],
+        ['Book Value', q.bookValue != null ? prefix + inr(q.bookValue) : '—'],
       ];
-      if (q.upperCircuit) stats.push(['Upper Circuit', '₹' + inr(q.upperCircuit)], ['Lower Circuit', '₹' + inr(q.lowerCircuit)]);
+      if (q.upperCircuit) stats.push(['Upper Circuit', prefix + inr(q.upperCircuit)], ['Lower Circuit', prefix + inr(q.lowerCircuit)]);
       $('#stat-grid').innerHTML = stats
         .map(([k, v]) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`)
         .join('');
@@ -1158,23 +1194,34 @@ async function renderStock(params) {
   $('#ma-toggle').onchange = applyMA;
 
   // ----- about -----
-  api('/api/fundamentals/' + encodeURIComponent(symbol))
-    .then((f) => {
-      $('#about-body').innerHTML = `
-        <div style="display:flex; gap:14px; flex-wrap:wrap; margin-bottom:12px">
-          ${f.sector ? `<span class="exch-tag">${esc(f.sector)}</span>` : ''}
-          ${f.industry ? `<span class="exch-tag" style="background:#eef2f7;color:#475569">${esc(f.industry)}</span>` : ''}
-          ${f.employees ? `<span class="muted" style="font-size:.78rem">${inr(f.employees, 0)} employees</span>` : ''}
-          ${f.website ? `<a href="${esc(f.website)}" target="_blank" style="font-size:.78rem;color:var(--accent)">${esc(f.website)}</a>` : ''}
-        </div>
-        <p style="font-size:.86rem; line-height:1.65; color:#3c4a63">${esc(f.description || 'No description available.')}</p>`;
-    })
-    .catch(() => {
-      $('#about-body').innerHTML = '<div class="empty">Company profile not available for this symbol.</div>';
-    });
+  if (commodity) {
+    $('#about-body').innerHTML = `<p style="font-size:.86rem; line-height:1.65; color:#3c4a63">
+      <b>${esc(commodity.label)}</b> · ${esc(commodity.unit)}. This is an international futures reference,
+      not an Indian equity. Use the Gold &amp; Silver Desk for MCX Mini prices, INR conversion, contract
+      expiry, local basis and commodity-specific technical context.</p>`;
+  } else {
+    api('/api/fundamentals/' + encodeURIComponent(symbol))
+      .then((f) => {
+        $('#about-body').innerHTML = `
+          <div style="display:flex; gap:14px; flex-wrap:wrap; margin-bottom:12px">
+            ${f.sector ? `<span class="exch-tag">${esc(f.sector)}</span>` : ''}
+            ${f.industry ? `<span class="exch-tag" style="background:#eef2f7;color:#475569">${esc(f.industry)}</span>` : ''}
+            ${f.employees ? `<span class="muted" style="font-size:.78rem">${inr(f.employees, 0)} employees</span>` : ''}
+            ${f.website ? `<a href="${esc(f.website)}" target="_blank" style="font-size:.78rem;color:var(--accent)">${esc(f.website)}</a>` : ''}
+          </div>
+          <p style="font-size:.86rem; line-height:1.65; color:#3c4a63">${esc(f.description || 'No description available.')}</p>`;
+      })
+      .catch(() => {
+        $('#about-body').innerHTML = '<div class="empty">Company profile not available for this symbol.</div>';
+      });
+  }
 
   // ----- research -----
   $('#research-btn').onclick = async () => {
+    if (commodity) {
+      location.hash = '#/gold';
+      return;
+    }
     researchRun = true;
     switchTab('research');
     const btn = $('#research-btn');
@@ -1231,7 +1278,7 @@ async function renderStock(params) {
     if (!v) return '';
     if (v.fairValue == null) {
       return `<div class="proj-card" style="margin-bottom:18px">
-        <h4>Fair Value Estimate</h4>
+        <h4>Model-implied Value</h4>
         <div class="muted" style="font-size:.84rem">${esc(v.method)} — earnings-based valuation doesn't apply. Judge on revenue growth &amp; path to profitability instead.</div>
       </div>`;
     }
@@ -1239,10 +1286,10 @@ async function renderStock(params) {
     const lo = Math.min(v.fairLow, price * 0.85), hi = Math.max(v.fairHigh, price * 1.15);
     const posOf = (x) => Math.max(2, Math.min(98, ((x - lo) / (hi - lo)) * 100));
     return `<div class="proj-card" style="margin-bottom:18px">
-      <h4>Fair Value Estimate · ${esc(v.method)}</h4>
+      <h4>Model-implied Value · ${esc(v.method)}</h4>
       <div style="display:flex; gap:26px; flex-wrap:wrap; align-items:baseline">
         <div><div class="proj-target ${cls(v.upsidePct)}">₹${inr(v.fairValue)}</div>
-        <div class="muted" style="font-size:.76rem">fair value band ₹${inr(v.fairLow, 0)} – ₹${inr(v.fairHigh, 0)}</div></div>
+        <div class="muted" style="font-size:.76rem">model sensitivity band ₹${inr(v.fairLow, 0)} – ₹${inr(v.fairHigh, 0)}</div></div>
         <div style="font-size:.9rem">vs market price <b class="num">₹${inr(price)}</b> →
           <b class="${cls(v.upsidePct)}">${v.upsidePct > 0 ? 'undervalued' : 'overvalued'} by ${Math.abs(v.upsidePct).toFixed(1)}%</b></div>
       </div>
@@ -1250,7 +1297,7 @@ async function renderStock(params) {
         <div class="proj-marker" style="left:calc(${posOf(price)}% - 2px)" title="Market price"></div>
         <div class="proj-marker" style="left:calc(${posOf(v.fairValue)}% - 2px); background:var(--green)" title="Fair value"></div>
       </div>
-      <div class="proj-ends"><span>₹${inr(lo, 0)}</span><span><span style="color:var(--navy)">▮</span> price · <span style="color:var(--green)">▮</span> fair value</span><span>₹${inr(hi, 0)}</span></div>
+      <div class="proj-ends"><span>₹${inr(lo, 0)}</span><span><span style="color:var(--navy)">▮</span> price · <span style="color:var(--green)">▮</span> model value</span><span>₹${inr(hi, 0)}</span></div>
       <div class="muted" style="font-size:.74rem; margin-top:10px">
         EPS (TTM) ₹${inr(v.epsTtm)} × justified P/E ${v.justifiedPE.toFixed(1)} (from ~${v.growthUsed.toFixed(0)}% blended growth)${v.currentPE ? ` · market is paying ${v.currentPE.toFixed(1)}x` : ''}
       </div>
@@ -1406,7 +1453,7 @@ async function renderStock(params) {
               <span class="verdict-chip ${r.verdictColor}">${esc(r.verdict)}</span>
               <div class="plain-verdict">${esc(r.plainVerdict || '')}</div>
               <div class="conf-bar" title="How much data backed this call">
-                <span>Confidence</span>
+                <span title="Measures how much source data was available, not probability of success">Data completeness</span>
                 <div class="conf-track"><div style="width:${r.scores.confidence}%"></div></div>
                 <b>${r.scores.confidence}%</b>
               </div>
@@ -1484,6 +1531,7 @@ async function renderStock(params) {
 
   // ----- add to portfolio -----
   $('#add-pf-btn').onclick = async () => {
+    if (commodity) return toast('Use an MCX instrument or ETF for portfolio tracking', 'err');
     const pfs = await api('/api/portfolios');
     const q = lastPrice;
     const ov = modal('Add to Portfolio', `
@@ -1771,7 +1819,7 @@ async function renderPortfolio() {
         <div class="h-cards">${mRows.map((h) => `
           <div class="h-card" onclick="location.hash='#/stock/${encodeURIComponent(h.symbol)}'">
             <div class="hc-r1">
-              <span class="hc-sym">${esc(dispSym(h.symbol))}</span>
+              <span class="hc-sym">${esc(dispSym(h.symbol))}${h.qualityFlags?.length ? ` <span title="${esc(h.qualityFlags.join('; '))}" style="color:var(--amber)">⚠</span>` : ''}</span>
               ${isAll() ? (h.accounts || []).map((a) => `<span class="acct-chip">${esc(acctShort(a.name))}</span>`).join('') : ''}
               <span class="chg-pill ${cls(h.dayChangePct)}" style="margin-left:auto">${pct(h.dayChangePct)}</span>
             </div>
@@ -1803,7 +1851,7 @@ async function renderPortfolio() {
         ${th('Stock', 'symbol')}${isAll() ? '<th>Accounts</th>' : ''}${th('Qty', 'qty')}${th('Avg', 'avgPrice')}${th('LTP', 'ltp')}${th('Day %', 'dayChangePct')}${th('Invested', 'invested')}${th('Value', 'value')}${th('Wt %', 'value')}${th('P&L', 'pnl')}${th('P&L %', 'pnlPct')}${isAll() ? '' : '<th></th>'}
       </tr></thead><tbody>
       ${rows.map((h) => `<tr onclick="location.hash='#/stock/${encodeURIComponent(h.symbol)}'">
-        <td><div class="stock-cell"><span class="s-sym">${esc(dispSym(h.symbol))}</span><span class="s-name">${esc(h.quoteName || h.name)}</span></div></td>
+        <td><div class="stock-cell"><span class="s-sym">${esc(dispSym(h.symbol))}${h.qualityFlags?.length ? ` <span title="${esc(h.qualityFlags.join('; '))}" style="color:var(--amber)">⚠</span>` : ''}</span><span class="s-name">${esc(h.quoteName || h.name)}</span></div></td>
         ${isAll() ? `<td style="text-align:left">${(h.accounts || []).map((a) => `<span class="acct-chip" title="${esc(a.name)}: ${inr(a.qty, 0)} qty">${esc(acctShort(a.name))}</span>`).join('')}</td>` : ''}
         <td class="num">${inr(h.qty, 0)}</td>
         <td class="num">₹${inr(h.avgPrice)}</td>
@@ -2211,11 +2259,22 @@ async function renderSettings() {
           <div class="muted" style="margin-top:12px; font-size:.76rem">Without Kite, the app uses free Yahoo data (~15 min delayed) — everything still works.</div>
         </div>
       </div>
+      <div class="card">
+        <div class="card-head"><span class="card-title">Terminal Security</span></div>
+        <div class="card-body">
+          <p class="muted" style="font-size:.8rem;line-height:1.55;margin-top:0">Sessions expire after 12 hours. Lock the terminal when you finish on a shared device.</p>
+          <button class="btn danger-ghost" id="terminal-logout">Lock &amp; Sign Out</button>
+        </div>
+      </div>
     </div>`;
   $('#cb-url').textContent = location.origin + '/api/kite/callback';
   $('#cb-copy').onclick = async () => {
     try { await navigator.clipboard.writeText(location.origin + '/api/kite/callback'); toast('Redirect URL copied', 'ok'); }
     catch { toast('Copy failed — select the URL manually', 'err'); }
+  };
+  $('#terminal-logout').onclick = async () => {
+    await api('/api/logout', { method: 'POST' });
+    location.reload();
   };
 
   async function loadKite() {

@@ -64,6 +64,20 @@ function todayIST() {
   return new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
 }
 
+/**
+ * Kite timestamps such as "2026-07-23 12:21:33" are exchange-local IST but
+ * contain no offset. Node on Render runs in UTC, so Date(string) incorrectly
+ * treated them as UTC and the browser displayed a quote 5½ hours in the future.
+ */
+function parseKiteTime(value) {
+  if (!value) return Date.now();
+  const raw = String(value).trim();
+  const hasZone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(raw);
+  const normalized = raw.replace(' ', 'T') + (hasZone ? '' : '+05:30');
+  const time = Date.parse(normalized);
+  return Number.isFinite(time) ? time : Date.now();
+}
+
 function status() {
   const cfg = load();
   const connected = !!(cfg.apiKey && cfg.accessToken && cfg.tokenDate === todayIST());
@@ -198,7 +212,7 @@ async function quotes(symbols) {
         upperCircuit: q.upper_circuit_limit,
         lowerCircuit: q.lower_circuit_limit,
         oi: q.open_interest ?? q.oi ?? null,
-        time: q.last_trade_time ? new Date(q.last_trade_time).getTime() : Date.now(),
+        time: parseKiteTime(q.last_trade_time),
         source: 'kite',
       };
     }
@@ -332,10 +346,21 @@ async function mcxMiniQuotes() {
       dayLow: q.ohlc?.low ?? null,
       volume: q.volume ?? null,
       oi: q.open_interest ?? q.oi ?? null,
-      time: q.last_trade_time ? new Date(q.last_trade_time).getTime() : Date.now(),
+      time: parseKiteTime(q.last_trade_time),
     };
   };
   return { gold: mk(gold), silver: mk(silver), source: 'mcx' };
 }
 
-module.exports = { status, setCredentials, disconnect, createSession, importSession, cloudRestore, quotes, history, mcxMiniQuotes };
+module.exports = {
+  status,
+  setCredentials,
+  disconnect,
+  createSession,
+  importSession,
+  cloudRestore,
+  quotes,
+  history,
+  mcxMiniQuotes,
+  parseKiteTime,
+};

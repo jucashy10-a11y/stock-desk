@@ -14,7 +14,7 @@ Open **http://localhost:3210**
 ## Features
 
 - **Dashboard** — NIFTY 50 / SENSEX / sector indices, top gainers & losers, market breadth. Auto-refreshes every 15s.
-- **Markets** — sortable, filterable live table of the NIFTY-150 universe. Any other NSE/BSE stock is reachable via the top search bar.
+- **Markets** — sortable, filterable live table of a curated Indian large- and mid-cap watch universe. Any other NSE/BSE stock is reachable via the top search bar.
 - **Stock page** — TradingView-style candlestick + volume chart (1D → MAX), full quote stats, company profile, and a one-button **Research this Company** report:
   - Composite 0–100 score (technicals + fundamentals + analyst consensus)
   - Verdict (Strong Outlook → High Risk)

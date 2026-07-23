@@ -3,8 +3,8 @@
  *
  * Scans the universe (+ optionally holdings) for actionable chart setups and
  * attaches concrete trade levels: entry, stop-loss, target and risk:reward.
- * These are MECHANICAL signals from price/volume math — not advice, and every
- * setup type carries a rough historical hit-rate so the odds are visible.
+ * These are MECHANICAL signals from price/volume math — not advice. Reference
+ * priors are explicitly unvalidated until backed by an outcome ledger.
  *
  * Runs on a schedule (pre-market / intraday / post-market) since the server is
  * always-on; results are cached and served to the Signals page.
@@ -54,7 +54,7 @@ function atr(candles, period = 14) {
 const round2 = (n) => Math.round(n * 100) / 100;
 
 // ---------- setup detectors ----------
-// Each returns null or { type, label, hitRate, reasons[], entry, stop, target, quality(0-100) }
+// Each returns null or { type, label, referenceRate, reasons[], entry, stop, target, quality(0-100) }
 // Stops sit below structure; targets use a >=2R measured move by default.
 
 function levels(entry, stop, targetMult = 2) {
@@ -68,6 +68,18 @@ function levels(entry, stop, targetMult = 2) {
     stopPct: round2(((stop - entry) / entry) * 100),
     targetPct: round2(((target - entry) / entry) * 100),
   };
+}
+
+const MAX_STOP_PCT = 12;
+const MIN_STOP_PCT = 1.5;
+function safeStop(entry, candidates, maxRiskPct = MAX_STOP_PCT) {
+  const valid = candidates.filter((v) => Number.isFinite(v) && v > 0 && v < entry);
+  if (!valid.length) return entry * 0.97;
+  // Use the nearest defensible technical level. Choosing the lowest candidate
+  // creates very wide stops and hides excessive absolute risk behind a good R:R.
+  const technical = Math.max(...valid);
+  const capped = Math.max(technical, entry * (1 - maxRiskPct / 100));
+  return Math.min(capped, entry * (1 - MIN_STOP_PCT / 100));
 }
 
 function detectSetups(sym, name, sector, candles) {
@@ -98,9 +110,9 @@ function detectSetups(sym, name, sector, candles) {
 
   // 1) Range / consolidation breakout on volume
   if (price > prior20High && volMult >= 1.4 && s50 != null && price > s50 && r != null && r < 78) {
-    const stop = Math.min(swingLow, price - 1.8 * a);
+    const stop = safeStop(price, [swingLow, price - 1.8 * a]);
     out.push({
-      type: 'breakout', label: 'Range Breakout', hitRate: 52,
+      type: 'breakout', label: 'Range Breakout', referenceRate: 52,
       reasons: [
         `Broke above 20-day resistance ₹${round2(prior20High)}`,
         `Volume ${volMult.toFixed(1)}× the 20-day average — real participation`,
@@ -113,9 +125,9 @@ function detectSetups(sym, name, sector, candles) {
 
   // 2) 52-week high breakout
   if (price >= yearHigh * 0.995 && trendUp && volMult >= 1.1) {
-    const stop = Math.min(swingLow, price - 2 * a);
+    const stop = safeStop(price, [swingLow, price - 2 * a]);
     out.push({
-      type: 'high52', label: '52-Week High Breakout', hitRate: 55,
+      type: 'high52', label: '52-Week High Breakout', referenceRate: 55,
       reasons: [
         'Trading at / near a fresh 52-week high — no overhead supply',
         trendUp ? '50-DMA above 200-DMA (clean uptrend)' : 'Uptrend',
@@ -129,9 +141,9 @@ function detectSetups(sym, name, sector, candles) {
   // 3) Volume surge with price thrust (accumulation)
   const day = ret(1);
   if (volMult >= 2.2 && day != null && day >= 2.5 && price > (s20 || 0)) {
-    const stop = Math.min(lows[n - 1], price - 1.5 * a);
+    const stop = safeStop(price, [lows[n - 1], price - 1.5 * a]);
     out.push({
-      type: 'volume', label: 'Volume Surge', hitRate: 47,
+      type: 'volume', label: 'Volume Surge', referenceRate: 47,
       reasons: [
         `Volume spiked ${volMult.toFixed(1)}× average`,
         `Price thrust +${day.toFixed(1)}% today`,
@@ -143,10 +155,11 @@ function detectSetups(sym, name, sector, candles) {
   }
 
   // 4) Golden cross (50 crosses above 200 recently)
-  if (s50 != null && s200 != null && s50p != null && s200p != null && s50 > s200 && s50p <= s200p) {
-    const stop = Math.min(swingLow, price - 2.2 * a, s200 * 0.99);
+  if (s50 != null && s200 != null && s50p != null && s200p != null &&
+      s50 > s200 && s50p <= s200p && price > s200) {
+    const stop = safeStop(price, [swingLow, price - 2.2 * a, s200 * 0.99]);
     out.push({
-      type: 'goldencross', label: 'Golden Cross', hitRate: 58,
+      type: 'goldencross', label: 'Golden Cross', referenceRate: 58,
       reasons: [
         '50-DMA just crossed above 200-DMA — classic trend-turn signal',
         `Price ₹${round2(price)} holding above the 200-DMA ₹${round2(s200)}`,
@@ -160,9 +173,9 @@ function detectSetups(sym, name, sector, candles) {
   const s50pShort = sma(closes, 50, n - 3);
   if (s50 != null && s50pShort != null && closes[n - 3] < s50pShort && price > s50 &&
       price < prior20High && trendUp && r != null && r > 45 && r < 68) {
-    const stop = Math.min(swingLow, s50 * 0.985);
+    const stop = safeStop(price, [swingLow, s50 * 0.985]);
     out.push({
-      type: 'reclaim', label: 'Pullback / MA Reclaim', hitRate: 50,
+      type: 'reclaim', label: 'Pullback / MA Reclaim', referenceRate: 50,
       reasons: [
         'Price pulled back to the 50-DMA and reclaimed it — trend continuation entry',
         'Long-term uptrend intact',
@@ -176,9 +189,9 @@ function detectSetups(sym, name, sector, candles) {
   // 6) Momentum leader (strong, trending, not overbought)
   const r3 = ret(63), r6 = ret(126);
   if (r3 != null && r6 != null && r6 > 25 && r3 > 8 && trendUp && price > (s20 || 0) && r != null && r >= 55 && r <= 72) {
-    const stop = Math.min(swingLow, price - 2 * a);
+    const stop = safeStop(price, [swingLow, price - 2 * a]);
     out.push({
-      type: 'momentum', label: 'Momentum Leader', hitRate: 49,
+      type: 'momentum', label: 'Momentum Leader', referenceRate: 49,
       reasons: [
         `Up ${r6.toFixed(0)}% over 6 months, ${r3.toFixed(0)}% over 3 — sustained leadership`,
         'Above all key moving averages',
@@ -197,8 +210,13 @@ function detectSetups(sym, name, sector, candles) {
     s.pctFromHigh = round2(((price - yearHigh) / yearHigh) * 100);
     s.quality = Math.round(Math.min(s.quality, 99));
     s.trendUp = trendUp;
+    s.riskPerShare = round2(s.entry - s.stop);
+    s.riskPct = round2(Math.abs(s.stopPct));
+    s.expirySessions = s.type === 'goldencross' || s.type === 'momentum' ? 10 : 5;
+    s.dataAsOf = candles[n - 1]?.time ? candles[n - 1].time * 1000 : null;
+    s.modelVersion = 'signals-v2';
   }
-  return out.filter((s) => s.rr >= 1.4 && s.stop < s.entry);
+  return out.filter((s) => s.rr >= 1.4 && s.stop < s.entry && Math.abs(s.stopPct) <= MAX_STOP_PCT);
 }
 
 // ---------- scan ----------
@@ -246,7 +264,7 @@ async function build(extraSymbols = []) {
       groups, top, totalSetups: all.length, scanned: list.length,
       disclaimer:
         'Mechanical technical signals from price & volume — NOT investment advice or guaranteed trades. ' +
-        'Entry/stop/target are suggested levels; hit-rates are rough historical tendencies, not promises. ' +
+        'Entry/stop/target are suggested levels. Reference priors are unvalidated heuristics, not backtested performance. ' +
         'Setups fail regularly — always size positions to the stop-loss and do your own diligence.',
     },
   };
@@ -265,4 +283,4 @@ function ensure(extraSymbols = [], force = false) {
 }
 const peek = () => state;
 
-module.exports = { ensure, peek, build };
+module.exports = { ensure, peek, build, detectSetups, safeStop, MAX_STOP_PCT, MIN_STOP_PCT };

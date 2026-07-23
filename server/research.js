@@ -444,10 +444,10 @@ async function research(symbol, options = {}) {
       };
       if (valuation.upsidePct > 20) {
         fScore = clamp(fScore + 5, 0, 100);
-        fPoints.push({ good: true, text: `Trading ~${valuation.upsidePct.toFixed(0)}% below estimated fair value of ₹${fairValue.toFixed(0)}` });
+        fPoints.push({ good: true, text: `Trading ~${valuation.upsidePct.toFixed(0)}% below the model-implied value of ₹${fairValue.toFixed(0)}` });
       } else if (valuation.upsidePct < -20) {
         fScore = clamp(fScore - 5, 0, 100);
-        fPoints.push({ good: false, text: `Trading ~${Math.abs(valuation.upsidePct).toFixed(0)}% above estimated fair value of ₹${fairValue.toFixed(0)}` });
+        fPoints.push({ good: false, text: `Trading ~${Math.abs(valuation.upsidePct).toFixed(0)}% above the model-implied value of ₹${fairValue.toFixed(0)}` });
       }
     } else if (epsTtm != null && epsTtm <= 0) {
       valuation = { method: 'Not meaningful — company is loss-making (negative EPS)', epsTtm, fairValue: null };
