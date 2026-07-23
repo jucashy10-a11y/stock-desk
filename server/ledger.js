@@ -94,15 +94,20 @@ function evaluateEntries(entries, symbol, candles, now = Date.now()) {
     for (const c of after) {
       sessions++;
       if (c.low <= e.stop) {
+        // gap-aware: if the session OPENED below the stop, no fill at the stop
+        // level was possible — book the (worse) open price, not the fantasy.
+        const fill = Number.isFinite(c.open) && c.open < e.stop ? c.open : e.stop;
         e.status = 'stopped';
-        e.closePrice = e.stop;
-        e.resultPct = ((e.stop - e.entry) / e.entry) * 100;
+        e.closePrice = fill;
+        e.resultPct = ((fill - e.entry) / e.entry) * 100;
         break;
       }
       if (c.high >= e.target) {
+        // symmetric: a gap above the target books the (better) open honestly
+        const fill = Number.isFinite(c.open) && c.open > e.target ? c.open : e.target;
         e.status = 'target';
-        e.closePrice = e.target;
-        e.resultPct = ((e.target - e.entry) / e.entry) * 100;
+        e.closePrice = fill;
+        e.resultPct = ((fill - e.entry) / e.entry) * 100;
         break;
       }
       if (sessions >= e.expirySessions) {
@@ -152,9 +157,12 @@ function stats() {
       if (e.resultPct != null) { t.results.push(e.resultPct); results.push(e.resultPct); }
     }
   }
+  // A win-rate quoted off a handful of trades is noise dressed as evidence:
+  // require 20 decided outcomes before promoting a percentage.
+  const MIN_SAMPLE = 20;
   const rate = (t) => {
     const n = t.wins + t.losses;
-    return n >= 5 ? Math.round((t.wins / n) * 100) : null;
+    return n >= MIN_SAMPLE ? Math.round((t.wins / n) * 100) : null;
   };
   const out = {};
   for (const [k, t] of Object.entries(byType)) {

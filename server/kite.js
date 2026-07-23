@@ -29,8 +29,14 @@ function load() {
 function save(cfg) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
   fs.writeFileSync(KITE_FILE, JSON.stringify(cfg, null, 2));
-  // keep today's access token alive across ephemeral-host restarts
-  gistsync.backupSoon('kite.json', () => JSON.stringify(cfg, null, 2));
+  // Keep today's access token alive across ephemeral-host restarts.
+  // NEVER include apiKey/apiSecret in the backup: they already live in the
+  // host's env vars and must not replicate to GitHub, even in a secret gist.
+  gistsync.backupSoon('kite.json', () => JSON.stringify({
+    accessToken: cfg.accessToken || '',
+    tokenDate: cfg.tokenDate || '',
+    userName: cfg.userName || '',
+  }, null, 2));
 }
 
 /** Adopt an already-generated access token (synced from another instance). */

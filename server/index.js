@@ -55,9 +55,29 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
  */
 const crypto = require('crypto');
 const APP_PASSWORD = process.env.APP_PASSWORD || '';
-const SESSION_MS = 12 * 60 * 60 * 1000;
+// Durable, stateless sessions: signed tokens verified by HMAC instead of an
+// in-memory map, so a server restart no longer logs every device out. Token
+// format: <expiryMs>.<hmac(expiryMs)>; logout clears the cookie on-device.
+const SESSION_MS = 180 * 24 * 60 * 60 * 1000;
+function sessionKey() {
+  return crypto.createHash('sha256').update('stockdesk-session-v1:' + APP_PASSWORD).digest();
+}
+function mintSession() {
+  const exp = String(Date.now() + SESSION_MS);
+  const sig = crypto.createHmac('sha256', sessionKey()).update(exp).digest('base64url');
+  return `${exp}.${sig}`;
+}
+function validSession(token) {
+  const dot = String(token || '').indexOf('.');
+  if (dot < 1) return false;
+  const exp = token.slice(0, dot);
+  if (!/^\d+$/.test(exp) || +exp < Date.now()) return false;
+  const expect = crypto.createHmac('sha256', sessionKey()).update(exp).digest('base64url');
+  const got = token.slice(dot + 1);
+  if (expect.length !== got.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(expect), Buffer.from(got));
+}
 const KITE_CAPSULE_COOKIE = 'sd_kite';
-const sessions = new Map();
 const loginFailures = new Map();
 const cookieValue = (req, name) => {
   const part = String(req.headers.cookie || '').split(';').map((s) => s.trim())
@@ -144,8 +164,7 @@ app.post('/api/login', (req, res) => {
   }
   if (sameSecret(req.body?.password || '', APP_PASSWORD)) {
     loginFailures.delete(ip);
-    const token = crypto.randomBytes(32).toString('base64url');
-    sessions.set(token, Date.now() + SESSION_MS);
+    const token = mintSession();
     const secure = req.headers['x-forwarded-proto'] === 'https' ? '; Secure' : '';
     res.setHeader(
       'Set-Cookie',
@@ -163,10 +182,7 @@ app.use('/api', (req, res, next) => {
   // /kite/callback stays open: Zerodha redirects the browser here after its own
   // login and the app session may be absent/expired at that moment.
   if (req.path === '/login' || req.path === '/health' || req.path === '/kite/callback') return next();
-  const token = cookieValue(req, 'sd_auth');
-  const expiresAt = sessions.get(token);
-  if (expiresAt && expiresAt > Date.now()) return next();
-  if (token) sessions.delete(token);
+  if (validSession(cookieValue(req, 'sd_auth'))) return next();
   res.status(401).json({ error: 'auth required' });
 });
 
@@ -184,8 +200,6 @@ app.get('/api/session', (req, res) => {
 });
 
 app.post('/api/logout', (req, res) => {
-  const token = cookieValue(req, 'sd_auth');
-  if (token) sessions.delete(token);
   const secure = req.headers['x-forwarded-proto'] === 'https' ? '; Secure' : '';
   res.setHeader('Set-Cookie', `sd_auth=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure}`);
   res.json({ ok: true });
@@ -1128,6 +1142,13 @@ Promise.allSettled([
   alerts.startChecker(getQuotes, 60 * 1000);
   setInterval(scheduleTick, 5 * 60 * 1000);
   setTimeout(scheduleTick, 20 * 1000); // one shortly after boot
+  // Warm boot: the free host restarts wipe all caches — rebuild the heavy
+  // scanners immediately so no tab greets the user cold, whatever the hour.
+  setTimeout(() => {
+    signals.ensure(holdingSymbols(), true);
+    ideas.ensure(true);
+    buildNewsRadar().catch(() => {});
+  }, 30 * 1000);
   app.listen(PORT, () => {
     console.log(`StockDesk running at http://localhost:${PORT}`);
   });

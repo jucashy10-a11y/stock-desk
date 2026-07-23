@@ -64,6 +64,58 @@
       "createdAt": 1784793481997,
       "triggeredAt": 1784793481997,
       "triggerNote": "Momentum Leader: entry ₹492.1, stop ₹444.26, target ₹611.69 (Q72)"
+    },
+    {
+      "id": "al17847942400273qcv",
+      "symbol": "BAJAJ-AUTO.NS",
+      "name": "Bajaj Auto",
+      "type": "signal",
+      "price": null,
+      "pct": null,
+      "label": "52-Week High Breakout: entry ₹11275, stop ₹10771.93, target ₹12532.68 (Q72)",
+      "status": "triggered",
+      "createdAt": 1784794240027,
+      "triggeredAt": 1784794240027,
+      "triggerNote": "52-Week High Breakout: entry ₹11275, stop ₹10771.93, target ₹12532.68 (Q72)"
+    },
+    {
+      "id": "al1784795720242l5wr",
+      "symbol": "LXCHEM.NS",
+      "name": "LXCHEM.NS",
+      "type": "signal",
+      "price": null,
+      "pct": null,
+      "label": "Volume Surge: entry ₹185.49, stop ₹173.33, target ₹209.81 (Q71)",
+      "status": "triggered",
+      "createdAt": 1784795720242,
+      "triggeredAt": 1784795720242,
+      "triggerNote": "Volume Surge: entry ₹185.49, stop ₹173.33, target ₹209.81 (Q71)"
+    },
+    {
+      "id": "al1784795720243lgap",
+      "symbol": "LXCHEM.NS",
+      "name": "LXCHEM.NS",
+      "type": "signal",
+      "price": null,
+      "pct": null,
+      "label": "Golden Cross: entry ₹185.49, stop ₹167.66, target ₹238.99 (Q78)",
+      "status": "triggered",
+      "createdAt": 1784795720243,
+      "triggeredAt": 1784795720243,
+      "triggerNote": "Golden Cross: entry ₹185.49, stop ₹167.66, target ₹238.99 (Q78)"
+    },
+    {
+      "id": "al1784796166846ei5r",
+      "symbol": "LXCHEM.NS",
+      "name": "LXCHEM.NS",
+      "type": "signal",
+      "price": null,
+      "pct": null,
+      "label": "Golden Cross: entry ₹185.25, stop ₹167.42, target ₹238.75 (Q78)",
+      "status": "triggered",
+      "createdAt": 1784796166846,
+      "triggeredAt": 1784796166846,
+      "triggerNote": "Golden Cross: entry ₹185.25, stop ₹167.42, target ₹238.75 (Q78)"
     }
   ]
 }
