@@ -2333,8 +2333,22 @@ async function renderSettings() {
 
 // ---------------- boot ----------------
 
-refreshConnBadge();
-refreshTicker();
-setInterval(refreshConnBadge, 30000);
-setInterval(refreshTicker, 30000);
-route();
+async function boot() {
+  try {
+    // Do not start page data requests behind the password overlay. This keeps a
+    // signed-out visit quiet and avoids expected 401s appearing as app errors.
+    await api('/api/session');
+  } catch (e) {
+    if (e.message === 'Login required') return;
+    throw e;
+  }
+  refreshConnBadge();
+  refreshTicker();
+  setInterval(refreshConnBadge, 30000);
+  setInterval(refreshTicker, 30000);
+  route();
+}
+
+boot().catch((e) => {
+  app.innerHTML = `<div class="card"><div class="empty">Unable to start StockDesk: ${esc(e.message)}</div></div>`;
+});

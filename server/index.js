@@ -110,6 +110,11 @@ app.use('/api', (req, res, next) => {
   res.status(401).json({ error: 'auth required' });
 });
 
+/** Lightweight protected probe so the client can authenticate before loading data. */
+app.get('/api/session', (req, res) => {
+  res.json({ ok: true });
+});
+
 app.post('/api/logout', (req, res) => {
   const token = cookieValue(req, 'sd_auth');
   if (token) sessions.delete(token);
