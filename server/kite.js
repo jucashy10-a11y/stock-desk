@@ -12,6 +12,7 @@ const gistsync = require('./gistsync');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const KITE_FILE = path.join(DATA_DIR, 'kite.json');
+let runtimeHealth = { lastSuccessAt: null, lastErrorAt: null, lastError: null, lastErrorType: null };
 
 function load() {
   let cfg;
@@ -33,12 +34,17 @@ function save(cfg) {
 }
 
 /** Adopt an already-generated access token (synced from another instance). */
-function importSession({ accessToken, tokenDate, userName }) {
-  if (!accessToken || tokenDate !== todayIST()) throw new Error('Token missing or not from today (IST)');
+function importSession({ accessToken, tokenDate, userName, apiKey, apiSecret }) {
+  if (!accessToken || tokenDate !== currentSessionDate()) {
+    throw new Error('Token missing or outside the current Kite session window');
+  }
   const cfg = load();
+  if (!cfg.apiKey && apiKey) cfg.apiKey = String(apiKey);
+  if (!cfg.apiSecret && apiSecret) cfg.apiSecret = String(apiSecret);
   cfg.accessToken = accessToken;
   cfg.tokenDate = tokenDate;
   cfg.userName = userName || cfg.userName || '';
+  cfg.disconnectReason = '';
   save(cfg);
   return status();
 }
@@ -51,7 +57,7 @@ async function cloudRestore() {
     const remote = JSON.parse(content);
     const local = load();
     // only adopt the remote token when it's from today and we don't have one
-    if (remote?.accessToken && remote.tokenDate === todayIST() && local.tokenDate !== todayIST()) {
+    if (remote?.accessToken && remote.tokenDate === currentSessionDate() && local.tokenDate !== currentSessionDate()) {
       save({ ...local, ...remote, apiKey: local.apiKey || remote.apiKey, apiSecret: local.apiSecret || remote.apiSecret });
       console.log('[gist] restored today\'s Kite session');
     }
@@ -62,6 +68,22 @@ async function cloudRestore() {
 
 function todayIST() {
   return new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+}
+
+/**
+ * Kite access tokens roll at roughly 06:00 IST, not midnight. Before 06:00,
+ * the active session still belongs to the previous calendar date.
+ */
+function currentSessionDate(now = Date.now()) {
+  return new Date(now + 5.5 * 3600 * 1000 - 6 * 3600 * 1000).toISOString().slice(0, 10);
+}
+
+function sessionExpiresAt(now = Date.now()) {
+  const ist = new Date(now + 5.5 * 3600 * 1000);
+  const next = new Date(Date.UTC(
+    ist.getUTCFullYear(), ist.getUTCMonth(), ist.getUTCDate() + (ist.getUTCHours() >= 6 ? 1 : 0), 0, 30, 0
+  ));
+  return next.getTime();
 }
 
 /**
@@ -80,13 +102,26 @@ function parseKiteTime(value) {
 
 function status() {
   const cfg = load();
-  const connected = !!(cfg.apiKey && cfg.accessToken && cfg.tokenDate === todayIST());
+  const connected = !!(cfg.apiKey && cfg.accessToken && cfg.tokenDate === currentSessionDate());
+  let reason = null;
+  if (!connected) {
+    if (!cfg.apiKey) reason = 'missing_key';
+    else if (!cfg.accessToken) reason = cfg.disconnectReason || 'not_connected';
+    else reason = 'daily_expiry';
+  }
   return {
     hasKey: !!cfg.apiKey,
     hasSecret: !!cfg.apiSecret,
     connected,
     userName: connected ? cfg.userName : '',
     tokenDate: cfg.tokenDate || null,
+    expiresAt: connected ? sessionExpiresAt() : null,
+    reason,
+    lastSuccessAt: runtimeHealth.lastSuccessAt,
+    lastErrorAt: runtimeHealth.lastErrorAt,
+    lastError: runtimeHealth.lastError,
+    lastErrorType: runtimeHealth.lastErrorType,
+    cloudBackup: gistsync.enabled(),
     loginUrl: cfg.apiKey
       ? `https://kite.zerodha.com/connect/login?v=3&api_key=${encodeURIComponent(cfg.apiKey)}`
       : null,
@@ -104,16 +139,18 @@ function setCredentials(apiKey, apiSecret) {
     // credentials actually changed — old token is meaningless
     cfg.accessToken = '';
     cfg.tokenDate = '';
+    cfg.disconnectReason = 'credentials_changed';
   }
   save(cfg);
   return status();
 }
 
-function disconnect() {
+function disconnect(reason = 'manual') {
   const cfg = load();
   cfg.accessToken = '';
   cfg.tokenDate = '';
   cfg.userName = '';
+  cfg.disconnectReason = reason;
   save(cfg);
   return status();
 }
@@ -144,10 +181,19 @@ async function createSession(requestToken) {
     throw new Error(j.message || 'Kite session exchange failed');
   }
   cfg.accessToken = j.data.access_token;
-  cfg.tokenDate = todayIST();
+  cfg.tokenDate = currentSessionDate();
   cfg.userName = j.data.user_name || j.data.user_id || '';
+  cfg.disconnectReason = '';
   save(cfg);
+  runtimeHealth = { lastSuccessAt: Date.now(), lastErrorAt: null, lastError: null, lastErrorType: null };
   return status();
+}
+
+function shouldInvalidateSession(httpStatus, errorType, message) {
+  if (httpStatus !== 401 && httpStatus !== 403) return false;
+  if (errorType === 'TokenException') return true;
+  const text = String(message || '').toLowerCase();
+  return /(?:invalid|expired|revoked)\s+(?:access\s+)?token|token\s+(?:is\s+)?(?:invalid|expired|revoked)/.test(text);
 }
 
 async function kiteGet(endpoint) {
@@ -159,15 +205,44 @@ async function kiteGet(endpoint) {
       Authorization: `token ${cfg.apiKey}:${cfg.accessToken}`,
     },
   });
-  const j = await res.json();
+  const j = await res.json().catch(() => ({ status: 'error', message: `Kite HTTP ${res.status}` }));
   if (j.status !== 'success') {
-    if (res.status === 403) {
-      // token expired — mark disconnected so app falls back to Yahoo
-      disconnect();
+    runtimeHealth = {
+      ...runtimeHealth,
+      lastErrorAt: Date.now(),
+      lastError: j.message || `Kite error ${res.status}`,
+      lastErrorType: j.error_type || null,
+    };
+    if (shouldInvalidateSession(res.status, j.error_type, j.message)) {
+      // Only a genuine token failure may clear the global live-data session.
+      // PermissionException (for example, historical-data access) must not.
+      disconnect('token_rejected');
     }
     throw new Error(j.message || `Kite error ${res.status}`);
   }
+  runtimeHealth = { lastSuccessAt: Date.now(), lastErrorAt: null, lastError: null, lastErrorType: null };
   return j.data;
+}
+
+/** Internal snapshot used only to build an encrypted, HttpOnly recovery cookie. */
+function sessionSnapshot() {
+  const cfg = load();
+  if (!cfg.accessToken || cfg.tokenDate !== currentSessionDate()) return null;
+  return {
+    apiKey: cfg.apiKey,
+    apiSecret: cfg.apiSecret,
+    accessToken: cfg.accessToken,
+    tokenDate: cfg.tokenDate,
+    userName: cfg.userName || '',
+  };
+}
+
+function recoveryKeyMaterial() {
+  const cfg = load();
+  if (!cfg.apiKey || !cfg.apiSecret) return '';
+  return crypto.createHash('sha256')
+    .update(`stockdesk-kite-recovery:${cfg.apiKey}:${cfg.apiSecret}`)
+    .digest('hex');
 }
 
 /** Convert a Yahoo-style symbol (RELIANCE.NS / 500325.BO) to a Kite instrument string. */
@@ -363,4 +438,9 @@ module.exports = {
   history,
   mcxMiniQuotes,
   parseKiteTime,
+  currentSessionDate,
+  sessionExpiresAt,
+  shouldInvalidateSession,
+  sessionSnapshot,
+  recoveryKeyMaterial,
 };

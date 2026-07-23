@@ -2,7 +2,7 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 const { safeStop, MAX_STOP_PCT } = require('./signals');
-const { parseKiteTime } = require('./kite');
+const { parseKiteTime, currentSessionDate, sessionExpiresAt, shouldInvalidateSession } = require('./kite');
 const { evaluateEntries } = require('./ledger');
 const { computeHoldings } = require('./portfolio');
 
@@ -16,6 +16,20 @@ assert.strictEqual(
   parseKiteTime('2026-07-23 12:21:33'),
   Date.parse('2026-07-23T12:21:33+05:30')
 );
+
+// Kite's daily session boundary is 06:00 IST, not midnight.
+assert.strictEqual(currentSessionDate(Date.parse('2026-07-22T18:30:00Z')), '2026-07-22'); // midnight IST
+assert.strictEqual(currentSessionDate(Date.parse('2026-07-23T00:29:59Z')), '2026-07-22'); // 05:59:59 IST
+assert.strictEqual(currentSessionDate(Date.parse('2026-07-23T00:30:00Z')), '2026-07-23'); // 06:00 IST
+assert.strictEqual(
+  sessionExpiresAt(Date.parse('2026-07-23T18:30:00Z')),
+  Date.parse('2026-07-24T00:30:00Z')
+);
+
+// A permission failure must not destroy a valid quote session.
+assert.strictEqual(shouldInvalidateSession(403, 'PermissionException', 'Insufficient permission'), false);
+assert.strictEqual(shouldInvalidateSession(403, 'TokenException', 'Invalid session'), true);
+assert.strictEqual(shouldInvalidateSession(401, null, 'Access token is expired'), true);
 
 // Embedded Top Picks must not assign onclick to its intentionally absent
 // standalone refresh button.
@@ -44,4 +58,4 @@ assert.strictEqual(pf.transactions.length, 2);
 assert.strictEqual(adjusted.qty, 10);
 assert.strictEqual(adjusted.avgPrice, 40);
 
-console.log('Reliability regressions: signal risk, Kite time, Top Picks, ledger and reconciliation passed');
+console.log('Reliability regressions: signal risk, Kite lifecycle, Top Picks, ledger and reconciliation passed');

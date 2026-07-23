@@ -1990,3 +1990,392 @@ select option { color: var(--text); background: #0b1118; }
   border-color: rgba(255, 173, 50, .35);
   border-radius: 11px;
 }
+
+/* ============================================================
+   StockDesk v19 — clearer hierarchy and calmer typography
+   ============================================================ */
+
+:root {
+  --bg: #070a0f;
+  --card: #0d131b;
+  --border: #26313d;
+  --text: #eef2f6;
+  --muted: #8b98a7;
+  --mono: "IBM Plex Mono", Consolas, monospace;
+}
+
+html { font-size: 15px; }
+body {
+  font-family: "Manrope", system-ui, sans-serif;
+  font-weight: 500;
+  letter-spacing: 0;
+  background-image:
+    radial-gradient(circle at 85% -10%, rgba(57, 102, 170, .09), transparent 30%),
+    linear-gradient(rgba(255,255,255,.012) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.012) 1px, transparent 1px);
+  background-size: auto, 40px 40px, 40px 40px;
+}
+.num,
+.hero-value,
+.hero-stats b,
+.index-card .idx-price,
+.stock-head .sh-price,
+.pf-stat .v,
+.ac-val { font-family: var(--mono); }
+
+.settings-summary {
+  min-height: 88px;
+  margin-bottom: 14px;
+  padding: 17px 19px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border: 1px solid #2b3744;
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 90% 20%, rgba(43,215,163,.08), transparent 34%),
+    #0e151e;
+}
+.settings-summary > div { display: flex; flex-direction: column; gap: 3px; }
+.settings-summary > div > span {
+  color: #7c8a99;
+  font: 600 .62rem var(--mono);
+  letter-spacing: .08em;
+}
+.settings-summary b { font-size: 1.08rem; }
+.settings-summary p {
+  max-width: 560px;
+  color: #8f9caa;
+  font-size: .78rem;
+  line-height: 1.5;
+  text-align: right;
+}
+.kite-state-block {
+  margin-bottom: 16px;
+  padding: 12px 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  border: 1px solid #34404d;
+  border-radius: 9px;
+  background: #101720;
+}
+.kite-state-block.connected {
+  border-color: rgba(43,215,163,.34);
+  background: rgba(43,215,163,.07);
+}
+.kite-state-block.offline {
+  border-color: rgba(255,173,50,.3);
+  background: rgba(255,173,50,.06);
+}
+.kite-state-block b { font-size: .82rem; }
+.kite-state-block span { color: #8d9aa8; font-size: .73rem; line-height: 1.45; }
+.connection-health { display: flex; flex-direction: column; }
+.health-row {
+  min-height: 44px;
+  padding: 9px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid #222c37;
+}
+.health-row:last-child { border-bottom: 0; }
+.health-row span { color: #8592a0; font-size: .74rem; }
+.health-row b { max-width: 65%; font-size: .74rem; text-align: right; }
+.connection-note {
+  margin-top: 12px;
+  padding: 10px 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  color: #d1a45d;
+  border: 1px solid rgba(255,173,50,.26);
+  border-radius: 8px;
+  background: rgba(255,173,50,.06);
+}
+.connection-note b { font-size: .72rem; }
+.connection-note span { font-size: .71rem; line-height: 1.45; }
+
+@media (min-width: 681px) {
+  .topbar-inner {
+    min-height: 58px;
+    padding: 8px 20px;
+    gap: 18px;
+  }
+  .brand {
+    font-family: "Manrope", sans-serif;
+    font-size: 1.2rem;
+    font-weight: 600;
+    letter-spacing: -.035em;
+  }
+  .brand b { font-weight: 800; }
+  .brand-sub {
+    font-family: var(--mono);
+    font-size: .6rem;
+    letter-spacing: .08em;
+  }
+  .nav { gap: 4px; }
+  .nav a {
+    min-height: 38px;
+    padding: 0 13px;
+    border-radius: 8px;
+    color: #96a2b0;
+    font-family: "Manrope", sans-serif;
+    font-size: .76rem;
+    font-weight: 700;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+  .nav a:hover {
+    color: #e7ecf2;
+    background: #121a24;
+    border-color: #2e3946;
+  }
+  .nav a.active {
+    color: #161005;
+    background: linear-gradient(135deg, #ffb33d, #f59a18);
+    border-color: #ffb33d;
+  }
+  .searchbox {
+    max-width: 360px;
+    height: 38px;
+    padding: 0 11px;
+    border-radius: 9px;
+    background: #0a1017;
+  }
+  .searchbox input {
+    font-family: "Manrope", sans-serif;
+    font-size: .78rem;
+  }
+  .cmd-prefix { font-family: var(--mono); }
+  .conn-badge {
+    min-height: 35px;
+    padding: 0 10px;
+    border-radius: 8px;
+  }
+  .terminal-rail {
+    height: 27px;
+    padding: 0 20px;
+    color: #718090;
+    background: #0b1118;
+    border-color: #202a35;
+    font-size: .59rem;
+  }
+  .terminal-mode, #terminal-view { color: #c89036; }
+  .ticker-strip { height: 32px; }
+  .ticker-track { padding: 0 20px; }
+  .ticker-item {
+    min-height: 32px;
+    padding: 0 17px;
+    font-size: .67rem;
+  }
+
+  main {
+    max-width: 1640px;
+    padding: 22px 22px 38px;
+  }
+  .page-title {
+    margin: 0 0 2px;
+    padding: 0;
+    border: 0;
+    color: #f3f6f9;
+    font-family: "Manrope", sans-serif;
+    font-size: 1.42rem;
+    font-weight: 800;
+    letter-spacing: -.035em;
+    text-transform: none;
+  }
+  .page-title::after {
+    content: "";
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-left: 8px;
+    border-radius: 50%;
+    background: var(--amber);
+    vertical-align: .22em;
+  }
+  .page-sub {
+    margin-top: 2px;
+    margin-bottom: 16px;
+    color: #7f8d9c;
+    font-size: .78rem;
+    line-height: 1.55;
+  }
+  .grid { gap: 14px; }
+  .card,
+  .index-card,
+  .sig-card,
+  .idea-card,
+  .acct-card,
+  .h-card,
+  .score-card,
+  .proj-card,
+  .stat,
+  .econ-chip,
+  .mypf-card,
+  .cmd-signal,
+  .track-strip,
+  .regime-strip,
+  .screener-bar {
+    border-color: #273340;
+    border-radius: 11px;
+    background: rgba(13, 19, 27, .98);
+  }
+  .card:hover, .index-card:hover, .sig-card:hover, .idea-card:hover, .acct-card:hover {
+    border-color: #3a4858;
+  }
+  .card-head {
+    min-height: 47px;
+    padding: 11px 14px;
+    background: #101720;
+  }
+  .card-title {
+    color: #dce3ea;
+    font-family: "Manrope", sans-serif;
+    font-size: .77rem;
+    font-weight: 800;
+    letter-spacing: .015em;
+    text-transform: none;
+  }
+  .card-body { padding: 15px; }
+  .btn {
+    min-height: 36px;
+    padding: 8px 13px;
+    border-radius: 8px;
+    font-family: "Manrope", sans-serif;
+    font-size: .71rem;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+  .btn.sm { min-height: 32px; padding: 6px 10px; font-size: .68rem; }
+  input, select, textarea, .field input, .field select, .tbl-filter {
+    min-height: 38px;
+    border-radius: 8px;
+    font-family: "Manrope", sans-serif;
+  }
+  .field label {
+    font-family: "Manrope", sans-serif;
+    font-size: .68rem;
+    letter-spacing: .02em;
+    text-transform: none;
+  }
+
+  .dash-hero, .pf-hero {
+    margin-bottom: 14px;
+    padding: 23px 25px;
+    border-radius: 14px;
+    background:
+      radial-gradient(circle at 90% 0%, rgba(255,173,50,.09), transparent 30%),
+      linear-gradient(120deg, #121c28, #0c131c 70%);
+  }
+  .dh-greet {
+    font-family: "Manrope", sans-serif;
+    font-size: 1.3rem;
+    letter-spacing: -.025em;
+  }
+  .dh-date, .hero-label { font-family: "Manrope", sans-serif; }
+  .dh-opp { border-radius: 10px; }
+  .dh-opp-body { padding: 14px 15px; border-radius: 9px; }
+  .mypf-card {
+    min-height: 66px;
+    padding: 14px 17px;
+  }
+  .econ-strip, .index-row { gap: 9px; }
+  .econ-chip { padding: 9px 12px; }
+  .index-card { padding: 13px 14px; }
+  .index-card .idx-name {
+    font-family: "Manrope", sans-serif;
+    font-size: .66rem;
+    letter-spacing: .02em;
+  }
+  .index-card .idx-price { margin-top: 4px; font-size: 1.03rem; }
+
+  table.data { font-size: .78rem; }
+  table.data th {
+    padding: 9px 10px;
+    font-family: "Manrope", sans-serif;
+    font-size: .64rem;
+    letter-spacing: .025em;
+  }
+  table.data td { padding: 9px 10px; }
+  .stock-cell .s-sym, .s-sym { font-family: var(--mono); font-size: .74rem; }
+  .stock-cell .s-name, .s-name { margin-top: 2px; color: #8492a1; }
+
+  .ideas-grid { gap: 13px; }
+  .sig-card, .idea-card { padding: 16px; }
+  .sig-levels {
+    margin: 10px 0;
+    padding: 11px 12px;
+    border-radius: 9px;
+  }
+  .sig-meta { gap: 11px; line-height: 1.6; }
+  .regime-strip, .track-strip, .disclaimer {
+    padding: 12px 15px;
+    border-radius: 10px;
+    line-height: 1.55;
+  }
+  .acct-pill { border-radius: 9px; }
+  .stock-head {
+    padding: 19px 20px;
+    border-radius: 13px;
+  }
+  .stock-head .sh-name { font-size: 1.35rem; }
+  .stock-tabs button {
+    min-height: 46px;
+    padding: 11px 18px;
+    font-weight: 700;
+  }
+  .modal { border-radius: 14px; }
+  .settings-layout {
+    grid-template-columns: minmax(380px, 1.05fr) minmax(380px, .95fr) !important;
+    align-items: start;
+  }
+}
+
+@media (max-width: 1100px) and (min-width: 681px) {
+  .topbar-inner { flex-wrap: wrap; }
+  .nav { order: 3; width: 100%; overflow-x: auto; }
+  .nav a { min-height: 34px; }
+  .terminal-hint { display: none; }
+  .settings-layout { grid-template-columns: 1fr !important; }
+}
+
+@media (max-width: 680px) {
+  body { font-family: "Manrope", system-ui, sans-serif; }
+  .brand, .ml-welcome b, .dh-greet { font-family: "Manrope", sans-serif; }
+  .page-title {
+    padding-left: 0;
+    border-left: 0;
+    font-family: "Manrope", sans-serif;
+    font-size: 1.18rem;
+    letter-spacing: -.025em;
+    text-transform: none;
+  }
+  .page-sub { color: #8996a4; font-size: .78rem; }
+  .card-title {
+    font-family: "Manrope", sans-serif;
+    font-size: .74rem;
+    letter-spacing: .01em;
+    text-transform: none;
+  }
+  .terminal-mode, .terminal-hint, #terminal-clock { display: none; }
+  #terminal-view { max-width: 58vw; }
+  .terminal-rail { justify-content: flex-start; }
+  .terminal-rail-right { margin-left: auto; }
+  .btn, .seg button { font-family: "Manrope", sans-serif; text-transform: none; letter-spacing: 0; }
+  .mobile-sheet-head b { font-size: 1.12rem; }
+  .mobile-sheet-grid b, .ml-grid b { font-size: .86rem; }
+  .settings-summary {
+    min-height: 0;
+    padding: 14px;
+    display: block;
+  }
+  .settings-summary b { font-size: .96rem; }
+  .settings-summary p { margin-top: 8px; font-size: .73rem; text-align: left; }
+  .settings-layout { grid-template-columns: 1fr !important; }
+  .health-row { align-items: flex-start; }
+  .health-row b { max-width: 58%; }
+}

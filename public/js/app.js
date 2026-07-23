@@ -128,11 +128,13 @@ async function refreshConnBadge() {
     if (st.connected) {
       badge.classList.add('live');
       $('#conn-label').textContent = 'KITE LIVE';
-      badge.title = `Kite connected as ${st.userName} — tap for Settings`;
+      badge.title = `Kite connected${st.userName ? ` as ${st.userName}` : ''} · recovery ${st.cloudBackup || st.deviceBackup ? 'enabled' : 'pending'}`;
     } else {
       badge.classList.remove('live');
-      $('#conn-label').textContent = 'DELAYED · CONNECT';
-      badge.title = 'Delayed data — tap to connect Kite for live prices';
+      $('#conn-label').textContent = st.reason === 'daily_expiry' ? 'KITE RESET · LOGIN' : 'DELAYED · CONNECT';
+      badge.title = st.reason === 'daily_expiry'
+        ? 'Kite completed its daily 6 AM reset — tap to reconnect'
+        : 'Delayed data — tap to connect Kite for live prices';
     }
   } catch {}
 }
@@ -557,8 +559,8 @@ let marketSort = { key: 'changePct', dir: -1 };
 
 async function renderMarkets() {
   app.innerHTML = `
-    <div class="page-title">All Stocks</div>
-    <div class="page-sub">Curated Indian large- and mid-cap watch universe with live prices — click any column to sort, use the search bar (top) for any other NSE/BSE stock<br/><span id="mkt-health"></span></div>
+    <div class="page-title">Markets</div>
+    <div class="page-sub">Screen Indian stocks by sector, size, valuation, price strength and volume.<br/><span id="mkt-health"></span></div>
     <div class="card">
       <div class="card-head" style="gap:8px; flex-wrap:wrap">
         <input id="mkt-filter" placeholder="Filter name / symbol / sector…" class="tbl-filter" style="width:min(280px, 48vw)" />
@@ -771,7 +773,7 @@ async function renderSignals() {
     <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:8px">
       <div>
         <div class="page-title">Signals</div>
-        <div class="page-sub" style="margin-bottom:0" id="sig-sub">Auto-scanned technical setups, news radar &amp; top picks</div>
+        <div class="page-sub" style="margin-bottom:0" id="sig-sub">Technical setups, portfolio warnings and measured outcomes</div>
       </div>
     </div>
     <div class="stock-tabs" id="sig-tabs">
@@ -780,7 +782,7 @@ async function renderSignals() {
       <button data-t="picks">⭐ Top Picks</button>
     </div>
     <div class="disclaimer" style="margin:0 0 16px">
-      ⚠ Mechanical signals from price/volume — <b>not advice or guaranteed trades</b>. Entry/stop/target are suggested levels; setups fail often. Always size to your stop-loss.
+      Rule-based signals are <b>not recommendations</b>. Use the displayed stop, control position size and expect some setups to fail.
     </div>
     <div id="sig-body"><div class="spinner"></div></div>`;
 
@@ -1828,7 +1830,7 @@ async function renderPortfolio() {
     <div class="pf-page-head" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:12px">
       <div>
         <div class="page-title">Portfolio</div>
-        <div class="page-sub" style="margin-bottom:0">Multi-account wealth terminal — live</div>
+        <div class="page-sub" style="margin-bottom:0">All accounts, daily P&amp;L, exposure and holding-level risk</div>
       </div>
       <div class="pf-actions" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
         <button class="btn sm" id="pf-new">+ New</button>
@@ -2538,28 +2540,36 @@ async function renderSettings() {
 
   app.innerHTML = `
     <div class="page-title">Settings</div>
-    <div class="page-sub">Connect your Zerodha Kite account for real-time NSE/BSE data</div>
-    <div class="grid" style="grid-template-columns: minmax(320px, 520px); ">
+    <div class="page-sub">Manage live-market data, connection recovery and terminal security</div>
+    <div class="settings-summary" id="settings-summary">
+      <div><span>MARKET DATA</span><b id="settings-market-state">Checking Kite…</b></div>
+      <p id="settings-market-note">Confirming your live-data session and recovery state.</p>
+    </div>
+    <div class="grid settings-layout">
       <div class="card">
-        <div class="card-head"><span class="card-title">Zerodha Kite Connect</span><span id="kite-badge"></span></div>
+        <div class="card-head"><span class="card-title">Zerodha Kite connection</span><span id="kite-badge"></span></div>
         <div class="card-body" id="kite-body"><div class="spinner"></div></div>
       </div>
       <div class="card">
-        <div class="card-head"><span class="card-title">Redirect URL — update this at Zerodha</span></div>
+        <div class="card-head"><span class="card-title">Connection protection</span></div>
+        <div class="card-body" id="kite-health-body"><div class="spinner"></div></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="card-title">Zerodha redirect URL</span></div>
         <div class="card-body" style="font-size:.83rem; line-height:1.6; color:#3c4a63">
           <div style="background:#fff7ed; border:1px solid #fbd7aa; border-radius:9px; padding:11px 13px; margin-bottom:12px; color:#9a4a12; font-size:.8rem">
-            Your Kite app must point back to <b>this</b> site. Go to <a href="https://developers.kite.trade/apps" target="_blank" style="color:#9a4a12; text-decoration:underline">developers.kite.trade → your app</a>, set the <b>Redirect URL</b> to the address below, and Save.
+            Set this exact URL in your Kite developer app. A wrong redirect URL prevents the login token from reaching StockDesk.
           </div>
           <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
             <code id="cb-url" style="background:#eef2f7; padding:8px 11px; border-radius:7px; font-size:.78rem; flex:1; min-width:0; overflow-x:auto; white-space:nowrap"></code>
             <button class="btn sm" id="cb-copy">Copy</button>
           </div>
           <div style="margin-top:14px; font-size:.8rem">
-            <b>Daily login (~30 sec, after Zerodha's 6 AM reset):</b><br/>
-            1. Tap <b>⚡ Connect / Re-login</b> above → log in at Zerodha.<br/>
-            2. It redirects back here and you're live. <span class="muted">(If the redirect URL isn't updated yet, copy the <code>request_token=…</code> from the address bar you land on and paste it in the Exchange box above — works either way.)</span>
+            <b>Daily login after Zerodha's 6 AM reset:</b><br/>
+            1. Tap <b>Connect / Re-login</b> and approve the Kite login.<br/>
+            2. Kite redirects here and StockDesk confirms the protected session.
           </div>
-          <div class="muted" style="margin-top:12px; font-size:.76rem">Without Kite, the app uses free Yahoo data (~15 min delayed) — everything still works.</div>
+          <div class="muted" style="margin-top:12px; font-size:.76rem">If Kite is unavailable, StockDesk automatically continues with delayed Yahoo data.</div>
         </div>
       </div>
       <div class="card">
@@ -2582,19 +2592,56 @@ async function renderSettings() {
 
   async function loadKite() {
     const st = await api('/api/kite/status');
+    const reasonText = {
+      missing_key: 'Add your Kite API key and secret to start.',
+      not_connected: 'Credentials are saved, but today’s Kite login has not been completed.',
+      credentials_changed: 'Credentials changed, so a fresh Kite login is required.',
+      token_rejected: 'Kite rejected the previous token. Please reconnect once.',
+      daily_expiry: 'The previous daily session reached Zerodha’s 6 AM reset.',
+      manual: 'The connection was manually disconnected.',
+    };
+    const expiry = st.expiresAt ? new Date(st.expiresAt).toLocaleString('en-IN', {
+      hour: 'numeric', minute: '2-digit', weekday: 'short', timeZone: 'Asia/Kolkata',
+    }) : null;
+    $('#settings-market-state').textContent = st.connected ? 'Kite live data is active' : 'Delayed fallback is active';
+    $('#settings-market-state').className = st.connected ? 'up' : 'down';
+    $('#settings-market-note').textContent = st.connected
+      ? `Live NSE/BSE quotes are available${expiry ? ` until the next Kite reset (${expiry})` : ''}.`
+      : (reasonText[st.reason] || 'Connect Kite to enable live NSE/BSE quotes.');
     $('#kite-badge').innerHTML = st.connected
       ? `<span class="chg-pill up">● CONNECTED${st.userName ? ' — ' + esc(st.userName) : ''}</span>`
       : `<span class="chg-pill down">○ NOT CONNECTED</span>`;
+    const protectionLabel = st.cloudBackup
+      ? 'Cloud recovery is enabled'
+      : st.deviceBackup
+        ? 'Encrypted recovery is enabled on this device'
+        : 'Recovery protection activates after your next successful login';
+    $('#kite-health-body').innerHTML = `
+      <div class="connection-health">
+        <div class="health-row"><span>Session boundary</span><b>06:00 AM IST</b></div>
+        <div class="health-row"><span>Restart recovery</span><b class="${st.cloudBackup || st.deviceBackup ? 'up' : ''}">${esc(protectionLabel)}</b></div>
+        <div class="health-row"><span>Permission errors</span><b>Do not disconnect quotes</b></div>
+        <div class="health-row"><span>Fallback</span><b>Yahoo delayed data</b></div>
+      </div>
+      ${st.lastError ? `<div class="connection-note"><b>Latest Kite response</b><span>${esc(st.lastError)}</span></div>` : ''}
+      <p class="muted" style="font-size:.75rem;line-height:1.55;margin:13px 0 0">
+        StockDesk now clears the live session only when Kite reports a genuine invalid or expired token.
+        Historical-data permission errors no longer disconnect live quotes.
+      </p>`;
     $('#kite-body').innerHTML = `
+      <div class="kite-state-block ${st.connected ? 'connected' : 'offline'}">
+        <b>${st.connected ? 'Live quotes enabled' : 'Live quotes are off'}</b>
+        <span>${st.connected ? 'The current Kite token is valid and protected.' : esc(reasonText[st.reason] || 'Complete the Kite login to reconnect.')}</span>
+      </div>
       <div class="field"><label>API Key</label><input id="k-key" placeholder="your kite api_key" value="" autocomplete="off" /></div>
       <div class="field"><label>API Secret</label><input id="k-secret" type="password" placeholder="${st.hasSecret ? '•••••••• (saved)' : 'your kite api_secret'}" autocomplete="off" /></div>
       <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:6px">
         <button class="btn primary" id="k-save">Save Credentials</button>
-        ${st.hasKey ? `<a class="btn success" href="${st.loginUrl}" id="k-connect">⚡ Connect / Re-login</a>` : ''}
+        ${st.hasKey ? `<a class="btn success" href="${st.loginUrl}" id="k-connect">Connect / Re-login</a>` : ''}
         ${st.connected ? '<button class="btn danger-ghost" id="k-disc">Disconnect</button>' : ''}
       </div>
       ${st.hasKey ? `<div style="margin-top:16px; border-top:1px solid var(--border); padding-top:14px">
-        <div class="muted" style="font-size:.76rem; margin-bottom:8px">If your app's redirect URL doesn't point here, paste the <b>request_token</b> from the redirected URL manually:</div>
+        <div class="muted" style="font-size:.76rem; margin-bottom:8px">Manual fallback: paste the <b>request_token</b> from Kite’s redirected URL.</div>
         <div style="display:flex; gap:8px">
           <input id="k-rt" placeholder="request_token" style="flex:1; padding:8px 11px; border:1px solid var(--border); border-radius:8px; font-size:.82rem" />
           <button class="btn" id="k-rt-go">Exchange</button>

@@ -56,6 +56,7 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 const crypto = require('crypto');
 const APP_PASSWORD = process.env.APP_PASSWORD || '';
 const SESSION_MS = 12 * 60 * 60 * 1000;
+const KITE_CAPSULE_COOKIE = 'sd_kite';
 const sessions = new Map();
 const loginFailures = new Map();
 const cookieValue = (req, name) => {
@@ -69,6 +70,64 @@ function sameSecret(a, b) {
   const ah = crypto.createHash('sha256').update(String(a)).digest();
   const bh = crypto.createHash('sha256').update(String(b)).digest();
   return crypto.timingSafeEqual(ah, bh);
+}
+
+function kiteCapsuleKey() {
+  const secret = APP_PASSWORD || process.env.KITE_CAPSULE_SECRET || kite.recoveryKeyMaterial();
+  if (!secret) return null;
+  return crypto.createHash('sha256')
+    .update(`stockdesk-kite-capsule-v1:${secret}:${APP_PASSWORD}`)
+    .digest();
+}
+
+function sealKiteSession(payload) {
+  const key = kiteCapsuleKey();
+  if (!key || !payload) return '';
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  const encrypted = Buffer.concat([cipher.update(JSON.stringify(payload), 'utf8'), cipher.final()]);
+  return Buffer.concat([iv, cipher.getAuthTag(), encrypted]).toString('base64url');
+}
+
+function openKiteSession(value) {
+  const key = kiteCapsuleKey();
+  const raw = Buffer.from(String(value || ''), 'base64url');
+  if (!key || raw.length < 29) throw new Error('invalid Kite recovery capsule');
+  const decipher = crypto.createDecipheriv('aes-256-gcm', key, raw.subarray(0, 12));
+  decipher.setAuthTag(raw.subarray(12, 28));
+  const clear = Buffer.concat([decipher.update(raw.subarray(28)), decipher.final()]).toString('utf8');
+  return JSON.parse(clear);
+}
+
+function setKiteRecoveryCookie(req, res) {
+  const capsule = sealKiteSession(kite.sessionSnapshot());
+  if (!capsule) return;
+  const secure = req.headers['x-forwarded-proto'] === 'https' ? '; Secure' : '';
+  const maxAge = Math.max(60, Math.floor((kite.sessionExpiresAt() - Date.now()) / 1000));
+  res.append(
+    'Set-Cookie',
+    `${KITE_CAPSULE_COOKIE}=${capsule}; Path=/api; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure}`
+  );
+}
+
+function clearKiteRecoveryCookie(req, res) {
+  const secure = req.headers['x-forwarded-proto'] === 'https' ? '; Secure' : '';
+  res.append(
+    'Set-Cookie',
+    `${KITE_CAPSULE_COOKIE}=; Path=/api; HttpOnly; SameSite=Lax; Max-Age=0${secure}`
+  );
+}
+
+function restoreKiteFromDevice(req, res) {
+  if (kite.status().connected) return;
+  const capsule = cookieValue(req, KITE_CAPSULE_COOKIE);
+  if (!capsule) return;
+  try {
+    kite.importSession(openKiteSession(capsule));
+    console.log('[kite] restored current session from encrypted device capsule');
+  } catch {
+    clearKiteRecoveryCookie(req, res);
+  }
 }
 
 app.post('/api/login', (req, res) => {
@@ -109,6 +168,14 @@ app.use('/api', (req, res, next) => {
   if (expiresAt && expiresAt > Date.now()) return next();
   if (token) sessions.delete(token);
   res.status(401).json({ error: 'auth required' });
+});
+
+// Render's free filesystem is ephemeral. Once the app session is authenticated,
+// restore today's Kite token from the encrypted HttpOnly device capsule when
+// cloud backup is unavailable or a restart happened before it completed.
+app.use('/api', (req, res, next) => {
+  restoreKiteFromDevice(req, res);
+  next();
 });
 
 /** Lightweight protected probe so the client can authenticate before loading data. */
@@ -955,13 +1022,21 @@ app.post('/api/ocr/trades', wrap(async (req, res) => {
 
 // ---------- kite ----------
 
-app.get('/api/kite/status', wrap(async (req, res) => res.json(kite.status())));
+app.get('/api/kite/status', wrap(async (req, res) => {
+  res.json({
+    ...kite.status(),
+    deviceBackup: !!cookieValue(req, KITE_CAPSULE_COOKIE),
+  });
+}));
 
 app.post('/api/kite/credentials', wrap(async (req, res) => {
   res.json(kite.setCredentials(req.body?.apiKey, req.body?.apiSecret));
 }));
 
-app.post('/api/kite/disconnect', wrap(async (req, res) => res.json(kite.disconnect())));
+app.post('/api/kite/disconnect', wrap(async (req, res) => {
+  clearKiteRecoveryCookie(req, res);
+  res.json(kite.disconnect('manual'));
+}));
 
 /** Kite redirects here after login (set redirect URL to http://localhost:3210/api/kite/callback). */
 app.get('/api/kite/callback', wrap(async (req, res) => {
@@ -971,6 +1046,7 @@ app.get('/api/kite/callback', wrap(async (req, res) => {
   }
   try {
     await kite.createSession(String(request_token));
+    setKiteRecoveryCookie(req, res);
     res.redirect('/#/settings?kite=connected');
   } catch (e) {
     res.redirect('/#/settings?kite=error&msg=' + encodeURIComponent(e.message));
@@ -979,12 +1055,16 @@ app.get('/api/kite/callback', wrap(async (req, res) => {
 
 /** Manual token exchange (paste request_token if redirect URL doesn't point here). */
 app.post('/api/kite/session', wrap(async (req, res) => {
-  res.json(await kite.createSession(String(req.body?.requestToken || '').trim()));
+  const result = await kite.createSession(String(req.body?.requestToken || '').trim());
+  setKiteRecoveryCookie(req, res);
+  res.json(result);
 }));
 
 /** Adopt today's access token generated on another instance (PC -> cloud sync). */
 app.post('/api/kite/session-import', wrap(async (req, res) => {
-  res.json(kite.importSession(req.body || {}));
+  const result = kite.importSession(req.body || {});
+  setKiteRecoveryCookie(req, res);
+  res.json(result);
 }));
 
 // SPA fallback
