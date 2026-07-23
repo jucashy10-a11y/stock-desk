@@ -18,6 +18,7 @@
   <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
+  <a class="skip-link" href="#app">Skip to market content</a>
   <header class="topbar">
     <div class="topbar-inner">
       <a class="brand" href="#/">
@@ -38,7 +39,7 @@
       </button>
       <div class="searchbox">
         <span class="cmd-prefix">CMD</span>
-        <input id="global-search" type="text" placeholder="Security / symbol / command" autocomplete="off" spellcheck="false" />
+        <input id="global-search" type="text" placeholder="Security / symbol / command" aria-label="Search NSE or BSE securities" autocomplete="off" spellcheck="false" />
         <kbd>/</kbd>
         <div id="search-results" class="search-results hidden"></div>
       </div>
@@ -63,7 +64,7 @@
   <main id="app"></main>
 
   <footer class="footer">
-    StockDesk · Market data via Zerodha Kite (live) / Yahoo Finance (delayed). Research &amp; projections are statistical estimates, not investment advice.
+    StockDesk · Market data via Zerodha Kite (live) / Yahoo Finance (delayed). Research outputs are deterministic scenarios—not AI analysis, calibrated forecasts or investment advice.
   </footer>
 
   <nav class="tabbar">
@@ -96,7 +97,7 @@
     </section>
   </div>
 
-  <div id="toast-wrap"></div>
+  <div id="toast-wrap" aria-live="polite" aria-atomic="true"></div>
   <script>
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');
   </script>

@@ -16,6 +16,7 @@ const { UNIVERSE } = require('./symbols');
 
 let state = { status: 'idle', progress: 0, total: 0, results: null, builtAt: 0, error: null };
 const FRESH_MS = 18 * 60 * 1000;
+const MIN_AVG_TRADED_VALUE = Math.max(0, +(process.env.SIGNAL_MIN_AVG_TRADED_VALUE || 2e7));
 
 // ---------- indicator math ----------
 const sma = (a, p, end) => {
@@ -141,6 +142,7 @@ function detectSetups(sym, name, sector, candles, ctx = {}) {
   const vAvg20 = sma(vols, 20, n) || 0;
   const vToday = vols[n - 1];
   const volMult = vAvg20 > 0 ? vToday / vAvg20 : 0;
+  const averageTradedValue = vAvg20 * price;
   const a = atr(candles) || price * 0.02;
   const r = rsi(closes);
   const ret = (d) => (n > d ? ((price - closes[n - 1 - d]) / closes[n - 1 - d]) * 100 : null);
@@ -269,9 +271,16 @@ function detectSetups(sym, name, sector, candles, ctx = {}) {
     s.riskPct = round2(Math.abs(s.stopPct));
     s.expirySessions = s.type === 'goldencross' || s.type === 'momentum' ? 10 : 5;
     s.dataAsOf = candles[n - 1]?.time ? candles[n - 1].time * 1000 : null;
-    s.modelVersion = 'signals-v3';
+    s.averageTradedValue = round2(averageTradedValue);
+    s.liquidityFloor = MIN_AVG_TRADED_VALUE;
+    s.modelVersion = 'signals-v4-next-open';
   }
-  return out.filter((s) => s.rr >= 1.4 && s.stop < s.entry && Math.abs(s.stopPct) <= MAX_STOP_PCT);
+  return out.filter((s) =>
+    s.rr >= 1.4 &&
+    s.stop < s.entry &&
+    Math.abs(s.stopPct) <= MAX_STOP_PCT &&
+    s.averageTradedValue >= MIN_AVG_TRADED_VALUE
+  );
 }
 
 // ---------- scan ----------
@@ -306,6 +315,9 @@ async function build(extraSymbols = []) {
 
   const all = [];
   const warnings = [];
+  const failures = [];
+  let succeeded = 0;
+  let adjustedCharts = 0;
   const CONC = 6;
   for (let i = 0; i < list.length; i += CONC) {
     await Promise.all(
@@ -315,11 +327,20 @@ async function build(extraSymbols = []) {
           const m = meta.get(sym);
           const nm = m?.name || sym;
           const sec = m?.sector || '';
-          all.push(...detectSetups(sym, nm, sec, h.candles, ctx));
+          const setups = detectSetups(sym, nm, sec, h.candles, ctx);
+          for (const s of setups) {
+            s.adjustedPrices = !!h.adjusted;
+            s.priceMethod = h.priceMethod || null;
+          }
+          all.push(...setups);
           if (holdings.has(sym)) warnings.push(...detectWarnings(sym, nm, sec, h.candles));
           // outcome ledger: close any open entries this chart resolves (no extra API cost)
           ledger.evaluate(sym, h.candles);
-        } catch { /* skip */ }
+          if (h.adjusted) adjustedCharts++;
+          succeeded++;
+        } catch (e) {
+          failures.push({ symbol: sym, error: String(e.message || 'history unavailable').slice(0, 160) });
+        }
         state.progress++;
       })
     );
@@ -352,18 +373,37 @@ async function build(extraSymbols = []) {
   })).filter((g) => g.setups.length);
 
   warnings.sort((a, b) => (a.severity === 'high' ? -1 : 1) - (b.severity === 'high' ? -1 : 1));
-  const top = [...all].sort((a, b) => b.quality - a.quality).slice(0, 8);
+  const top = [];
+  const topSymbols = new Set();
+  for (const s of [...all].sort((a, b) => b.quality - a.quality)) {
+    if (topSymbols.has(s.symbol)) continue;
+    topSymbols.add(s.symbol);
+    top.push(s);
+    if (top.length >= 8) break;
+  }
 
   state = {
     status: 'ready', progress: state.total, total: state.total, builtAt: Date.now(), error: null,
     results: {
       groups, top, warnings, regime: regimeInfo,
-      measured: { overall: measured.overall, totalEntries: measured.totalEntries },
-      totalSetups: all.length, scanned: list.length,
+      measured: {
+        overall: measured.overall,
+        totalEntries: measured.totalEntries,
+        methodology: measured.methodology,
+      },
+      totalSetups: all.length,
+      attempted: list.length,
+      scanned: succeeded,
+      failed: failures.length,
+      failures: failures.slice(0, 25),
+      adjustedPrices: adjustedCharts === succeeded,
+      adjustedCharts,
+      liquidityFloor: MIN_AVG_TRADED_VALUE,
       disclaimer:
         'Mechanical technical signals from price & volume — NOT investment advice or guaranteed trades. ' +
-        'Entry/stop/target are suggested levels. "Rule prior" is an unvalidated heuristic; "Measured" is this ' +
-        'scanner\'s own tracked record (small samples early on — treat with care). ' +
+        'Published levels are evaluated from the next tradable daily open with modeled slippage, costs, ' +
+        'gap rejection, adjusted prices and a minimum liquidity floor. "Measured" is this scanner\'s own ' +
+        'net tracked record; it is hidden below 20 outcomes and includes expiries. ' +
         'Setups fail regularly — always size positions to the stop-loss and do your own diligence.',
     },
   };

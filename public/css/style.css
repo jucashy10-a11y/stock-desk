@@ -2379,3 +2379,61 @@ body {
   .health-row { align-items: flex-start; }
   .health-row b { max-width: 58%; }
 }
+
+/* Audit remediation: comfortable phone typography, touch targets and focus. */
+.skip-link {
+  position: fixed;
+  left: 12px;
+  top: -80px;
+  z-index: 10000;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #fff;
+  color: #07111d;
+  font-weight: 800;
+}
+.skip-link:focus { top: 12px; }
+.list-more { padding: 12px; text-align: center; }
+[role="link"]:focus-visible, [role="tab"]:focus-visible {
+  outline: 3px solid #57a8ff;
+  outline-offset: 2px;
+}
+.source-health-list { display: grid; gap: 8px; }
+.source-health-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 14px;
+  padding: 10px 11px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.source-health-row.failed { border-color: #8c3535; background: rgba(166, 48, 48, .1); }
+.source-health-row > div { display: flex; flex-direction: column; gap: 2px; }
+.source-health-row > div:last-of-type { text-align: right; }
+.source-health-row span, .source-health-row p { color: var(--muted); font-size: .75rem; }
+.source-health-row p { grid-column: 1 / -1; margin: 4px 0 0; color: #ef8d8d; }
+
+@media (max-width: 680px) {
+  html { font-size: 16px; }
+  .terminal-rail, .ticker-item, .page-sub, .card-title, .muted,
+  .sig-meta, .nr-meta, .hc-name, .hc-r2, .settings-summary p,
+  .health-row span, .health-row b, .connection-note span,
+  .mobile-sheet-grid small, .ml-grid small {
+    font-size: max(.75rem, 12px);
+    line-height: 1.45;
+  }
+  .ticker-strip { height: 36px; }
+  .ticker-item { min-height: 36px; padding: 0 12px; }
+  .terminal-rail { min-height: 30px; }
+  .card-title, .page-sub { font-size: .82rem; }
+  .btn, .btn.sm, button:not(.mobile-sheet-backdrop), input, select, textarea,
+  .field input, .field select, .tbl-filter {
+    min-height: 44px;
+  }
+  .tabbar a, .tabbar button { min-height: 58px; }
+  .stock-tabs button, .seg button { min-height: 44px; }
+  .hm-tile, .mkt-row, .h-card, .sig-card, .idea-card { min-height: 48px; }
+  .modal { max-height: calc(100dvh - 24px); overflow-y: auto; }
+  .source-health-row { grid-template-columns: 1fr; }
+  .source-health-row > div:last-of-type { text-align: left; flex-direction: row; gap: 8px; }
+}

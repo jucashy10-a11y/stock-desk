@@ -19,6 +19,7 @@ const ledger = require('./ledger');
 const alerts = require('./alerts');
 const telegram = require('./telegram');
 const gistsync = require('./gistsync');
+const datahealth = require('./datahealth');
 const fs = require('fs');
 const portfolio = require('./portfolio');
 const { INDICES, UNIVERSE } = require('./symbols');
@@ -211,6 +212,10 @@ app.get('/api/health', (req, res) => {
   res.json({ ok: true, up: process.uptime(), at: Date.now() });
 });
 
+app.get('/api/data-health', (req, res) => {
+  res.json(datahealth.snapshot());
+});
+
 /**
  * Keep-alive: Render's free tier spins the instance down after ~15 idle
  * minutes. Pinging our own public URL every 10 minutes keeps it warm 24/7
@@ -228,8 +233,9 @@ if (SELF_URL) {
 const wrap = (fn) => (req, res) =>
   Promise.resolve(fn(req, res)).catch((e) => {
     const notFound = /not found/i.test(e.message || '');
+    const badRequest = /invalid|exceeds available|already recorded|unsupported|duplicate/i.test(e.message || '');
     if (!notFound) console.error(`[api] ${req.method} ${req.originalUrl} -> ${e.message}`);
-    res.status(notFound ? 404 : 500).json({ error: e.message });
+    res.status(notFound ? 404 : badRequest ? 400 : 500).json({ error: e.message });
   });
 
 /**
@@ -607,7 +613,10 @@ function loadSnaps() {
 }
 function saveSnaps(snaps) {
   fs.mkdirSync(path.dirname(SNAP_FILE), { recursive: true });
-  fs.writeFileSync(SNAP_FILE, JSON.stringify({ snaps }));
+  const content = JSON.stringify({ snaps });
+  const temp = `${SNAP_FILE}.${process.pid}.tmp`;
+  fs.writeFileSync(temp, content);
+  fs.renameSync(temp, SNAP_FILE);
   gistsync.backupSoon('portfolio-history.json', () => JSON.stringify({ snaps }));
 }
 async function snapshotsCloudRestore() {
@@ -630,7 +639,32 @@ async function takeSnapshot() {
   const nifty = nq['^NSEI']?.price ?? null;
   const date = new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
   const snaps = loadSnaps().filter((s) => s.date !== date);
-  snaps.push({ date, current: Math.round(valued.summary.current), invested: Math.round(valued.summary.invested), nifty });
+  const now = Date.now();
+  const prev = snaps[snaps.length - 1] || null;
+  const externalFlow = prev ? portfolio.externalFlowBetween(prev.takenAt || Date.parse(prev.date), now) : 0;
+  const periodPortfolioReturn = prev?.current
+    ? (valued.summary.current - prev.current - externalFlow) / prev.current
+    : 0;
+  const periodNiftyReturn = prev?.nifty && nifty ? (nifty - prev.nifty) / prev.nifty : 0;
+  const portfolioIndex = prev?.portfolioIndex != null
+    ? prev.portfolioIndex * (1 + periodPortfolioReturn)
+    : 100;
+  const niftyIndex = prev?.niftyIndex != null
+    ? prev.niftyIndex * (1 + periodNiftyReturn)
+    : 100;
+  snaps.push({
+    date,
+    takenAt: now,
+    current: Math.round(valued.summary.current),
+    invested: Math.round(valued.summary.invested),
+    nifty,
+    externalFlow: Math.round(externalFlow),
+    periodPortfolioReturn,
+    periodNiftyReturn,
+    portfolioIndex,
+    niftyIndex,
+    method: 'daily chain-linked return, external buys/sells removed',
+  });
   saveSnaps(snaps.slice(-400));
   return snaps[snaps.length - 1];
 }
@@ -641,21 +675,24 @@ app.get('/api/portfolio-history', wrap(async (req, res) => {
     const agg = portfolio.getAllAccounts();
     const quotes = await getQuotes([...new Set(agg.holdings.map((h) => h.symbol)), '^NSEI']);
     const valuedNow = valueHoldings(agg.holdings, quotes).summary;
-    const nowVal = valuedNow.current;
     const niftyNow = quotes['^NSEI']?.price ?? null;
-    // A raw value comparison is only valid while the invested cost base is
-    // unchanged. After a buy/sell/reconciliation, begin again from the first
-    // snapshot with the new base instead of reporting false alpha.
-    const tolerance = Math.max(1, Math.abs(valuedNow.invested) * 0.000001);
-    const base = snaps.find((s) => Math.abs((s.invested ?? NaN) - valuedNow.invested) <= tolerance);
-    since = base
-      ? {
-          baselineDate: base.date,
-          portfolioPct: base.current ? +(((nowVal - base.current) / base.current) * 100).toFixed(2) : null,
-          niftyPct: base.nifty && niftyNow ? +(((niftyNow - base.nifty) / base.nifty) * 100).toFixed(2) : null,
-          comparable: true,
-        }
-      : { comparable: false, needsBaseline: true };
+    const base = snaps[0];
+    const last = snaps[snaps.length - 1];
+    const flowSinceLast = portfolio.externalFlowBetween(last.takenAt || Date.parse(last.date), Date.now());
+    const currentPortfolioReturn = last.current
+      ? (valuedNow.current - last.current - flowSinceLast) / last.current
+      : 0;
+    const currentNiftyReturn = last.nifty && niftyNow ? (niftyNow - last.nifty) / last.nifty : 0;
+    const portfolioIndex = (last.portfolioIndex ?? 100) * (1 + currentPortfolioReturn);
+    const niftyIndex = (last.niftyIndex ?? 100) * (1 + currentNiftyReturn);
+    since = {
+      baselineDate: base.date,
+      portfolioPct: +(portfolioIndex - 100).toFixed(2),
+      niftyPct: +(niftyIndex - 100).toFixed(2),
+      comparable: true,
+      cashFlowAdjusted: true,
+      method: 'daily chain-linked return with net external buys/sells removed',
+    };
   }
   res.json({ snaps, since });
 }));
@@ -664,6 +701,10 @@ app.get('/api/portfolio-history', wrap(async (req, res) => {
 app.post('/api/portfolios/:id/reconcile', wrap(async (req, res) => {
   const { symbol, avgPrice } = req.body || {};
   res.json(portfolio.reconcileCost(req.params.id, symbol, avgPrice));
+}));
+
+app.post('/api/portfolios/:id/corporate-action', wrap(async (req, res) => {
+  res.json(portfolio.applyCorporateAction(req.params.id, req.body || {}));
 }));
 
 /**
@@ -891,6 +932,7 @@ app.get('/api/portfolios/all', wrap(async (req, res) => {
     holdings: valued.rows,
     accounts,
     transactions: [],
+    accounting: agg.accounting,
     summary: valued.summary,
     insights: portfolioInsights(valued.rows),
   });
@@ -907,6 +949,7 @@ app.get('/api/portfolios/:id', wrap(async (req, res) => {
     name: pf.name,
     holdings: valued.rows,
     transactions: pf.transactions,
+    accounting: pf.accounting,
     summary: valued.summary,
     insights: portfolioInsights(valued.rows),
   });

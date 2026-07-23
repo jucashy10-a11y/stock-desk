@@ -5,7 +5,7 @@
  * produces a 0-100 composite score, a verdict, and volatility-based
  * short-term (3 month) and long-term (12 month) projection ranges.
  *
- * These are statistical estimates, NOT financial advice — the report says so too.
+ * Outputs are deterministic scenarios, not calibrated forecasts or financial advice.
  */
 
 const yahoo = require('./yahoo');
@@ -111,6 +111,121 @@ function cagr(first, last, years) {
   return (Math.pow(last / first, 1 / years) - 1) * 100;
 }
 
+function buildSectorValuation({ price, fund, statements, sector = '', industry = '', name = '' }) {
+  const context = `${sector} ${industry} ${name}`.toLowerCase();
+  const epsTtm = fund?.eps ?? (statements?.annual?.length
+    ? statements.annual[statements.annual.length - 1].eps
+    : null);
+  const currentPE = fund?.pe ?? (epsTtm > 0 ? price / epsTtm : null);
+  const unavailable = (method, warning) => ({
+    method,
+    fairValue: null,
+    fairLow: null,
+    fairHigh: null,
+    upsidePct: null,
+    epsTtm,
+    currentPE,
+    applicability: 'not-applicable',
+    warning,
+    assumptions: [],
+  });
+
+  if (/insurance/.test(context)) {
+    return unavailable(
+      'Insurer appraisal-value model required',
+      'P/E and P/B alone do not capture embedded value, solvency, product mix or new-business margins.'
+    );
+  }
+
+  if (/bank|banking|nbfc|financial services|finance|lending|housing finance/.test(context)) {
+    const bookValue = fund?.bookValue ?? null;
+    const roe = fund?.roe ?? null;
+    if (!(bookValue > 0) || roe == null) {
+      return unavailable(
+        'ROE-adjusted P/B reference',
+        'Book value and ROE are required; lender asset quality and credit-cost data are not available.'
+      );
+    }
+    // Conservative lender reference range. This is not a full residual-income
+    // model: GNPA/NNPA, provision coverage, NIM and capital adequacy remain
+    // explicit missing inputs.
+    const targetPB = clamp(0.65 + Math.max(roe - 8, 0) * 0.075, 0.65, 2.5);
+    const fairValue = bookValue * targetPB;
+    return {
+      method: 'ROE-adjusted price-to-book reference',
+      metricLabel: 'Book value/share',
+      metricValue: bookValue,
+      multipleLabel: 'Reference P/B',
+      multipleValue: targetPB,
+      fairValue,
+      fairLow: fairValue * 0.75,
+      fairHigh: fairValue * 1.25,
+      upsidePct: ((fairValue - price) / price) * 100,
+      epsTtm,
+      currentPE,
+      applicability: 'limited',
+      warning: 'Lender reference only; GNPA/NNPA, NIM, credit cost and capital adequacy are not modeled.',
+      assumptions: [`ROE ${roe.toFixed(1)}%`, `book value/share ₹${bookValue.toFixed(2)}`],
+    };
+  }
+
+  if (/conglomerate|diversified/.test(context)) {
+    return unavailable(
+      'Sum-of-the-parts model required',
+      'A single earnings multiple is not reliable for a conglomerate with businesses that deserve different multiples.'
+    );
+  }
+
+  if (/oil|gas|refin|metal|mining|steel|aluminium|cement|commodity|paper|sugar|fertili/.test(context)) {
+    return unavailable(
+      'Mid-cycle earnings / EV-EBITDA model required',
+      'Current trailing earnings can sit at a commodity-cycle peak or trough, so a spot P/E target would be misleading.'
+    );
+  }
+
+  if (/utility|utilities|power generation|electricity|infrastructure investment trust|reit/.test(context)) {
+    return unavailable(
+      'Regulated cash-flow / asset-value model required',
+      'Debt maturity, regulated returns, project cash flows and asset values are required for a defensible reference value.'
+    );
+  }
+
+  if (!(epsTtm > 0)) {
+    return unavailable(
+      'Earnings reference not meaningful',
+      'The company has no positive trailing EPS; use revenue, unit economics, cash runway and a path-to-profitability model.'
+    );
+  }
+
+  const growthCandidates = [statements?.profitCagr3y, fund?.earningsGrowth]
+    .filter((v) => v != null && Number.isFinite(v));
+  const growth = growthCandidates.length
+    ? clamp(growthCandidates.reduce((a, b) => a + b, 0) / growthCandidates.length, -10, 30)
+    : 6;
+  // A deliberately narrower multiple than the old universal formula. Growth
+  // above 30% is not extrapolated and the range remains visibly uncertain.
+  const justifiedPE = clamp(12 + 0.65 * Math.max(growth, 0), 10, 32);
+  const fairValue = epsTtm * justifiedPE;
+  return {
+    method: 'Growth-adjusted earnings reference',
+    metricLabel: 'EPS (TTM)',
+    metricValue: epsTtm,
+    multipleLabel: 'Reference P/E',
+    multipleValue: justifiedPE,
+    epsTtm,
+    growthUsed: growth,
+    justifiedPE,
+    fairValue,
+    fairLow: fairValue * 0.75,
+    fairHigh: fairValue * 1.25,
+    upsidePct: ((fairValue - price) / price) * 100,
+    currentPE,
+    applicability: 'standard',
+    warning: 'Reference range, not a target price. It excludes company-specific DCF and event risk.',
+    assumptions: [`earnings growth input ${growth.toFixed(1)}%`, `reference P/E ${justifiedPE.toFixed(1)}x`],
+  };
+}
+
 function buildTwoXCase(price, fund, statements, valuation, sector = '', market = {}) {
   const years = 4;
   const marketDoubleCagr = (Math.pow(2, 1 / years) - 1) * 100;
@@ -138,6 +253,7 @@ function buildTwoXCase(price, fund, statements, valuation, sector = '', market =
   const bullTarget = bullGrowth == null ? null : price * Math.pow(1 + bullGrowth / 100, years) * (currentPE ? Math.min(1, 35 / currentPE) : 0.95);
   const bearTarget = bearGrowth == null ? null : price * Math.pow(1 + bearGrowth / 100, years) * multipleChange * 0.75;
   const isFinancial = /bank|nbfc|financial|insurance/i.test(sector);
+  const specializedValuationRequired = valuation?.applicability != null && valuation.applicability !== 'standard';
   const cashSamples = (statements?.annual || []).slice(-3)
     .filter((x) => x.netIncome > 0 && x.ocf != null)
     .map((x) => x.ocf / x.netIncome)
@@ -147,7 +263,7 @@ function buildTwoXCase(price, fund, statements, valuation, sector = '', market =
   const promoterTrend = statements?.shareholding?.promoterTrend;
   const historyComplete = (statements?.annual?.length || 0) >= 4 && (statements?.quarterly?.length || 0) >= 4;
   const liquidEnough = market.historyDays >= 252 && market.avgTradedValue >= 2e7;
-  const supportedSector = !isFinancial;
+  const supportedSector = !isFinancial && !specializedValuationRequired;
   const requiredFields = isFinancial
     ? [rev, profit, fund?.roe, fund?.profitMargin, promoterTrend, marketCapCr]
     : [rev, profit, fund?.roe, fund?.profitMargin, fund?.debtToEquity, cashConversion, promoterTrend, marketCapCr];
@@ -172,7 +288,7 @@ function buildTwoXCase(price, fund, statements, valuation, sector = '', market =
   score = clamp(Math.round(score), 0, 100);
   const baseUpsidePct = baseTarget == null ? null : ((baseTarget - price) / price) * 100;
   return {
-    modelVersion: '2x-v1',
+    modelVersion: '2x-v2-sector-gated',
     asOf: Date.now(),
     horizon: `${years} years`,
     doublePrice: price * 2,
@@ -195,7 +311,11 @@ function buildTwoXCase(price, fund, statements, valuation, sector = '', market =
     historyComplete,
     liquidEnough,
     supportedSector,
-    unsupportedReason: isFinancial ? 'Banks/NBFCs/insurers require a lender-specific asset-quality model' : null,
+    unsupportedReason: isFinancial
+      ? 'Banks/NBFCs/insurers require a lender-specific asset-quality model'
+      : specializedValuationRequired
+        ? (valuation.warning || `${valuation.method || 'A specialist valuation model'} is required`)
+        : null,
     clearsTwoX: dataComplete && growthAssumption >= requiredCagr
       && baseUpsidePct != null && baseUpsidePct >= 100 && score >= 70,
     checks,
@@ -219,6 +339,7 @@ async function research(symbol, options = {}) {
     if (fund.roce == null && fin.ratios.roce != null) fund.roce = fin.ratios.roce;
     if (fund.divYield == null && fin.ratios.divYield != null) fund.divYield = fin.ratios.divYield;
     if (fund.marketCap == null && fin.ratios.marketCap != null) fund.marketCap = fin.ratios.marketCap;
+    if (fund.bookValue == null && fin.ratios.bookValue != null) fund.bookValue = fin.ratios.bookValue;
     if (fund.pb == null && fin.ratios.bookValue > 0 && fin.ratios.price > 0) {
       fund.pb = fin.ratios.price / fin.ratios.bookValue;
     }
@@ -313,6 +434,12 @@ async function research(symbol, options = {}) {
   const fPoints = [];
   let fScore = 50;
   let fSignals = 0;
+  const companyContext = `${options.sector || ''} ${fund?.sector || ''} ${fund?.industry || ''} ${quote.name || ''}`.toLowerCase();
+  const isLender = /bank|banking|nbfc|financial services|finance|lending|housing finance/.test(companyContext);
+  const isInsurer = /insurance/.test(companyContext);
+  const isCycleSensitive = /oil|gas|refin|metal|mining|steel|aluminium|cement|commodity|paper|sugar|fertili/.test(companyContext);
+  const isConglomerate = /conglomerate|diversified/.test(companyContext);
+  const trailingPEComparable = !isLender && !isInsurer && !isCycleSensitive && !isConglomerate;
   if (fund) {
     if (fund.roe != null) {
       fSignals++;
@@ -321,7 +448,7 @@ async function research(symbol, options = {}) {
       if (fund.roe >= 15) fPoints.push({ good: true, text: `Healthy return on equity of ${fund.roe.toFixed(1)}%` });
       else if (fund.roe < 8) fPoints.push({ good: false, text: `Low return on equity (${fund.roe.toFixed(1)}%)` });
     }
-    if (fund.profitMargin != null) {
+    if (fund.profitMargin != null && !isLender && !isInsurer) {
       fSignals++;
       const s = scoreBand(fund.profitMargin, [[0, -8], [5, -2], [12, 3], [20, 6], [Infinity, 8]]);
       fScore += s;
@@ -341,19 +468,19 @@ async function research(symbol, options = {}) {
       if (fund.earningsGrowth >= 15) fPoints.push({ good: true, text: `Earnings growing at ${fund.earningsGrowth.toFixed(1)}% YoY` });
       else if (fund.earningsGrowth < -10) fPoints.push({ good: false, text: `Earnings shrinking (${fund.earningsGrowth.toFixed(1)}% YoY)` });
     }
-    if (fund.debtToEquity != null) {
+    if (fund.debtToEquity != null && !isLender && !isInsurer) {
       fSignals++;
       const de = fund.debtToEquity; // Yahoo reports in % terms (e.g., 45 = 0.45x)
       fScore += scoreBand(de, [[30, 5], [80, 2], [150, -2], [Infinity, -7]]);
       if (de <= 30) fPoints.push({ good: true, text: 'Near debt-free balance sheet' });
       else if (de > 150) fPoints.push({ good: false, text: `High leverage — debt/equity ≈ ${(de / 100).toFixed(1)}x` });
     }
-    if (fund.pe != null && fund.pe > 0) {
+    if (trailingPEComparable && fund.pe != null && fund.pe > 0) {
       fSignals++;
       fScore += scoreBand(fund.pe, [[15, 5], [25, 2], [40, -1], [70, -4], [Infinity, -7]]);
       if (fund.pe <= 15) fPoints.push({ good: true, text: `Attractive valuation at ${fund.pe.toFixed(1)}x trailing P/E` });
       else if (fund.pe > 70) fPoints.push({ good: false, text: `Expensive at ${fund.pe.toFixed(0)}x trailing P/E — priced for perfection` });
-    } else if (fund.pe != null && fund.pe <= 0) {
+    } else if (trailingPEComparable && fund.pe != null && fund.pe <= 0) {
       fScore -= 5;
     }
     if (fund.analystRecommendation) {
@@ -417,41 +544,24 @@ async function research(symbol, options = {}) {
   fScore = clamp(Math.round(fScore), 0, 100);
   const fundamentalsAvailable = (fund && fSignals >= 2) || annual.length >= 3;
 
-  // ----- fair value estimate (justified-P/E on earnings power) -----
+  // ----- sector-aware valuation reference -----
   const priceNow = quote.price ?? closes[closes.length - 1];
-  let valuation = null;
-  {
-    const epsTtm = fund?.eps ?? (annual.length ? annual[annual.length - 1].eps : null);
-    if (epsTtm != null && epsTtm > 0) {
-      const growthCandidates = [statements.profitCagr3y, fund?.earningsGrowth, statements.revenueCagr3y].filter(
-        (v) => v != null && isFinite(v)
-      );
-      const growth = growthCandidates.length
-        ? clamp(growthCandidates.reduce((a, b) => a + b, 0) / growthCandidates.length, -10, 35)
-        : 8;
-      const justifiedPE = clamp(10 + 1.4 * Math.max(growth, 0), 8, 45);
-      const fairValue = epsTtm * justifiedPE;
-      valuation = {
-        method: 'Justified P/E on trailing EPS',
-        epsTtm,
-        growthUsed: growth,
-        justifiedPE,
-        fairValue,
-        fairLow: fairValue * 0.8,
-        fairHigh: fairValue * 1.2,
-        upsidePct: ((fairValue - priceNow) / priceNow) * 100,
-        currentPE: fund?.pe ?? (epsTtm > 0 ? priceNow / epsTtm : null),
-      };
-      if (valuation.upsidePct > 20) {
-        fScore = clamp(fScore + 5, 0, 100);
-        fPoints.push({ good: true, text: `Trading ~${valuation.upsidePct.toFixed(0)}% below the model-implied value of ₹${fairValue.toFixed(0)}` });
-      } else if (valuation.upsidePct < -20) {
-        fScore = clamp(fScore - 5, 0, 100);
-        fPoints.push({ good: false, text: `Trading ~${Math.abs(valuation.upsidePct).toFixed(0)}% above the model-implied value of ₹${fairValue.toFixed(0)}` });
-      }
-    } else if (epsTtm != null && epsTtm <= 0) {
-      valuation = { method: 'Not meaningful — company is loss-making (negative EPS)', epsTtm, fairValue: null };
-    }
+  const valuation = buildSectorValuation({
+    price: priceNow,
+    fund,
+    statements,
+    sector: options.sector || fund?.sector || '',
+    industry: fund?.industry || '',
+    name: quote.name || '',
+  });
+  // Limited lender references stay visible but never manufacture a green
+  // verdict. Only the standard model may influence the fundamental score.
+  if (valuation.applicability === 'standard' && valuation.upsidePct > 20 && valuation.upsidePct < 100) {
+    fScore = clamp(fScore + 3, 0, 100);
+    fPoints.push({ good: true, text: 'Trading below the model reference-range midpoint (not a target price)' });
+  } else if (valuation.applicability === 'standard' && valuation.upsidePct < -20) {
+    fScore = clamp(fScore - 3, 0, 100);
+    fPoints.push({ good: false, text: 'Trading above the model reference-range midpoint' });
   }
 
   // ----- composite + verdict -----
@@ -468,7 +578,7 @@ async function research(symbol, options = {}) {
   const fWeak = fundamentalsAvailable && fScore < 45;
   const tStrong = tScore >= 65;
   const tWeak = tScore < 40;
-  const expensive = fund?.pe != null && fund.pe > 45;
+  const expensive = trailingPEComparable && fund?.pe != null && fund.pe > 45;
   let plainVerdict;
   if (fStrong && tStrong) plainVerdict = expensive ? 'Expensive but firing on all cylinders — quality momentum.' : 'Good business in an uptrend — rare combination, worth attention.';
   else if (fStrong && tWeak) plainVerdict = 'Good long-term compounder going through a weak price phase — one for patient accumulation, not quick gains.';
@@ -480,15 +590,13 @@ async function research(symbol, options = {}) {
 
   // ----- valuation score (0-100): cheaper vs fair value + sane P/E = higher -----
   let valuationScore = null;
-  if (valuation?.fairValue != null) {
+  if (valuation?.fairValue != null && valuation.applicability === 'standard') {
     let vs = 50 + clamp(valuation.upsidePct, -60, 60) * 0.6;
     if (fund?.pe != null && fund.pe > 0) {
       vs += scoreBand(fund.pe, [[15, 12], [25, 6], [40, 0], [70, -8], [Infinity, -16]]);
     }
     if (fund?.pb != null && fund.pb > 0) vs += scoreBand(fund.pb, [[1.5, 8], [3, 3], [6, -3], [Infinity, -8]]);
     valuationScore = clamp(Math.round(vs), 0, 100);
-  } else if (fund?.pe != null && fund.pe > 0) {
-    valuationScore = clamp(Math.round(55 + scoreBand(fund.pe, [[15, 15], [25, 5], [40, -5], [70, -15], [Infinity, -25]])), 0, 100);
   }
 
   // ----- risk score (0-100, HIGHER = riskier) -----
@@ -499,8 +607,8 @@ async function research(symbol, options = {}) {
     else if (t.vol1y > 38) { riskPts += 12; risks.push(`Elevated volatility (${t.vol1y.toFixed(0)}% annualised)`); }
     else if (t.vol1y < 22) riskPts -= 6;
   }
-  if (fund?.debtToEquity != null && fund.debtToEquity > 150) { riskPts += 15; risks.push(`High leverage (debt/equity ≈ ${(fund.debtToEquity / 100).toFixed(1)}x) — vulnerable if rates rise or earnings dip`); }
-  if (fund?.profitMargin != null && fund.profitMargin < 0) { riskPts += 15; risks.push('Loss-making — no earnings cushion if conditions worsen'); }
+  if (!isLender && !isInsurer && fund?.debtToEquity != null && fund.debtToEquity > 150) { riskPts += 15; risks.push(`High leverage (debt/equity ≈ ${(fund.debtToEquity / 100).toFixed(1)}x) — vulnerable if rates rise or earnings dip`); }
+  if (!isLender && !isInsurer && fund?.profitMargin != null && fund.profitMargin < 0) { riskPts += 15; risks.push('Loss-making — no earnings cushion if conditions worsen'); }
   if (t.sma200 != null && price < t.sma200) { riskPts += 10; risks.push('Below 200-day average — the primary trend is not on your side'); }
   if (expensive) { riskPts += 10; risks.push(`Rich valuation (${fund.pe.toFixed(0)}x P/E) leaves little room for disappointment`); }
   if (fund?.marketCap != null && fund.marketCap < 5000e7) { riskPts += 8; risks.push('Small-cap — thinner liquidity and bigger drawdowns in bad markets'); }
@@ -513,14 +621,14 @@ async function research(symbol, options = {}) {
     plainVerdict = `The score looks positive, but risk is high (${riskScore}/100). Treat this as speculative, not a core recommendation.`;
   }
 
-  // ----- confidence: how much data backed this call -----
+  // ----- data coverage: source completeness, never predictive confidence -----
   let conf = 40;
   if (fundamentalsAvailable) conf += 20;
   if (annual.length >= 4) conf += 12;
   if (fund?.analystCount) conf += Math.min(fund.analystCount, 15);
   if (statements.quarterly?.length >= 4) conf += 8;
   if (candles.length >= 400) conf += 5;
-  const confidence = clamp(Math.round(conf), 25, 95);
+  const dataCoverage = clamp(Math.round(conf), 25, 95);
 
   // ----- projections -----
   // Short term (3 months): momentum tilt bounded by volatility.
@@ -561,7 +669,7 @@ async function research(symbol, options = {}) {
     analystHigh: fund?.analystTargetHigh ?? null,
     analystLow: fund?.analystTargetLow ?? null,
   };
-  const twoX = buildTwoXCase(price, fund, statements, valuation, options.sector || '', {
+  const twoX = buildTwoXCase(price, fund, statements, valuation, options.sector || fund?.sector || fund?.industry || '', {
     historyDays: candles.length,
     avgTradedValue: (t.avgVol60 || 0) * price,
   });
@@ -583,7 +691,8 @@ async function research(symbol, options = {}) {
       valuation: valuationScore,
       risk: riskScore,
       riskLabel,
-      confidence,
+      confidence: dataCoverage,
+      dataCoverage,
       composite,
     },
     verdict,
@@ -595,9 +704,10 @@ async function research(symbol, options = {}) {
     shortTerm,
     longTerm,
     twoX,
+    analysisType: 'deterministic',
     disclaimer:
-      'These projections are statistical estimates derived from historical volatility, momentum and analyst data. They are NOT investment advice and markets can behave very differently. Do your own diligence or consult a SEBI-registered advisor.',
+      'This is deterministic algorithmic research derived from historical price, volatility, fundamentals and analyst-consensus inputs. It is not AI analysis, a calibrated probability, a target price or investment advice. Markets can behave very differently; verify source data and consult a SEBI-registered adviser where appropriate.',
   };
 }
 
-module.exports = { research, buildTwoXCase };
+module.exports = { research, buildTwoXCase, buildSectorValuation };

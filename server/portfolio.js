@@ -8,6 +8,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const yahoo = require('./yahoo');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
@@ -23,7 +24,9 @@ function loadJSON(file, fallback) {
 }
 function saveJSON(file, data) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
-  fs.writeFileSync(file, JSON.stringify(data, null, 2));
+  const temp = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(temp, JSON.stringify(data, null, 2));
+  fs.renameSync(temp, file);
 }
 
 /**
@@ -215,14 +218,33 @@ function parseCSV(text) {
 
 function parseDate(s) {
   // MM/DD/YYYY or DD-MM-YYYY or YYYY-MM-DD
-  if (!s) return new Date().toISOString().slice(0, 10);
+  if (!s) return null;
   let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (m) return `${m[3]}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`;
+  if (m) return validDate(+m[3], +m[1], +m[2]);
   m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (m) return s;
+  if (m) return validDate(+m[1], +m[2], +m[3]);
   m = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
-  if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
-  return new Date().toISOString().slice(0, 10);
+  if (m) return validDate(+m[3], +m[2], +m[1]);
+  return null;
+}
+
+function validDate(year, month, day) {
+  const d = new Date(Date.UTC(year, month - 1, day));
+  if (d.getUTCFullYear() !== year || d.getUTCMonth() !== month - 1 || d.getUTCDate() !== day) return null;
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+function sourceKey(tx) {
+  const normalized = [
+    String(tx.isin || '').trim().toUpperCase(),
+    String(tx.symbol || '').trim().toUpperCase(),
+    tx.symbol ? '' : String(tx.name || '').trim().toLowerCase().replace(/\s+/g, ' '),
+    String(tx.date || ''),
+    String(tx.type || '').toUpperCase(),
+    Number(tx.qty).toFixed(6),
+    Number(tx.price).toFixed(6),
+  ].join('|');
+  return crypto.createHash('sha256').update(normalized).digest('hex').slice(0, 24);
 }
 
 /**
@@ -234,16 +256,43 @@ async function importCSV(portfolioId, csvText) {
   const pf = st.portfolios.find((p) => p.id === portfolioId);
   if (!pf) throw new Error('Portfolio not found');
   const rows = parseCSV(csvText);
+  // Broker exports are frequently newest-first. Accounting must be replayed
+  // chronologically so a valid historical sell is not rejected before its buy.
+  rows.sort((a, b) => {
+    const da = parseDate(a[2]);
+    const db = parseDate(b[2]);
+    return da && db ? da.localeCompare(db) : 0;
+  });
   let imported = 0;
+  let skippedDuplicates = 0;
   const failed = [];
+  const existingKeys = new Set();
+  const existingOccurrences = new Map();
+  for (const tx of pf.transactions) {
+    const base = sourceKey(tx);
+    const occurrence = (existingOccurrences.get(base) || 0) + 1;
+    existingOccurrences.set(base, occurrence);
+    existingKeys.add(tx.sourceId || `${base}-${occurrence}`);
+    // Compatibility with the first idempotency version, which stored the
+    // unsuffixed key for the first occurrence.
+    if (tx.sourceId === base) existingKeys.add(`${base}-1`);
+  }
+  const incomingOccurrences = new Map();
+  const available = new Map(computeHoldings(pf).map((h) => [h.symbol, h.qty]));
   for (const row of rows) {
     if (row.length < 6) continue;
     const [isin, name, date, txType, exchange, qty, price] = row;
     if (/isin/i.test(isin)) continue; // header row
     const q = parseFloat(qty);
     const p = parseFloat(price);
-    if (!name || !isFinite(q) || !isFinite(p) || q <= 0) {
-      if (name && !/isin/i.test(isin)) failed.push({ name: name || isin, reason: 'invalid qty/price' });
+    const parsedDate = parseDate(date);
+    if (!name || !isFinite(q) || !isFinite(p) || q <= 0 || p <= 0 || !parsedDate) {
+      if (name && !/isin/i.test(isin)) {
+        failed.push({
+          name: name || isin,
+          reason: !parsedDate ? 'invalid or missing date' : 'invalid quantity or price',
+        });
+      }
       continue;
     }
     const resolved = await resolveSymbol(name, isin, (exchange || 'NSE').toUpperCase());
@@ -251,27 +300,50 @@ async function importCSV(portfolioId, csvText) {
       failed.push({ name, reason: 'could not resolve symbol' });
       continue;
     }
-    pf.transactions.push({
+    const type = /sell/i.test(txType) ? 'SELL' : 'BUY';
+    const candidate = {
       id: 'tx' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
       symbol: resolved.symbol,
       name: resolved.name || name,
-      type: /sell/i.test(txType) ? 'SELL' : 'BUY',
+      type,
       qty: q,
       price: p,
-      date: parseDate(date),
+      date: parsedDate,
       isin: isin || null,
-    });
+      createdAt: Date.now(),
+      importSource: 'csv',
+    };
+    const baseId = sourceKey(candidate);
+    const occurrence = (incomingOccurrences.get(baseId) || 0) + 1;
+    incomingOccurrences.set(baseId, occurrence);
+    candidate.sourceId = `${baseId}-${occurrence}`;
+    if (existingKeys.has(candidate.sourceId)) {
+      skippedDuplicates++;
+      continue;
+    }
+    const held = available.get(candidate.symbol) || 0;
+    if (type === 'SELL' && q > held + 1e-8) {
+      failed.push({ name, reason: `sell quantity ${q} exceeds available ${held}` });
+      continue;
+    }
+    available.set(candidate.symbol, type === 'BUY' ? held + q : held - q);
+    pf.transactions.push(candidate);
+    existingKeys.add(candidate.sourceId);
     imported++;
   }
   saveState(st);
-  return { imported, failed };
+  return { imported, skippedDuplicates, failed };
 }
 
 // ---------- holdings computation ----------
 
 function computeHoldings(pf) {
   const bySymbol = new Map();
-  const txs = [...pf.transactions].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  const txs = [...pf.transactions].sort((a, b) =>
+    String(a.date).localeCompare(String(b.date)) ||
+    (+a.createdAt || 0) - (+b.createdAt || 0) ||
+    String(a.id || '').localeCompare(String(b.id || ''))
+  );
   for (const tx of txs) {
     let h = bySymbol.get(tx.symbol);
     if (!h) {
@@ -284,12 +356,23 @@ function computeHoldings(pf) {
       if (h.qty > 0 && Number.isFinite(+tx.price) && +tx.price > 0) {
         h.cost = h.qty * +tx.price;
       }
+    } else if (tx.type === 'SPLIT') {
+      const ratio = +tx.ratio;
+      if (!(ratio > 0) || h.qty <= 0) throw new Error(`Invalid split for ${tx.symbol}`);
+      h.qty *= ratio;
+    } else if (tx.type === 'BONUS') {
+      const ratio = +tx.ratio;
+      if (!(ratio > 0) || h.qty <= 0) throw new Error(`Invalid bonus ratio for ${tx.symbol}`);
+      h.qty *= 1 + ratio;
     } else if (tx.type === 'BUY') {
       h.cost += tx.qty * tx.price;
       h.qty += tx.qty;
     } else {
       const avg = h.qty > 0 ? h.cost / h.qty : 0;
-      const sellQty = Math.min(tx.qty, h.qty);
+      if (tx.qty > h.qty + 1e-8) {
+        throw new Error(`Sell quantity ${tx.qty} exceeds available ${h.qty} for ${tx.symbol}`);
+      }
+      const sellQty = tx.qty;
       h.realized += sellQty * (tx.price - avg);
       h.cost -= sellQty * avg;
       h.qty -= sellQty;
@@ -349,27 +432,108 @@ function getPortfolio(id) {
   const st = loadState();
   const pf = st.portfolios.find((p) => p.id === id);
   if (!pf) throw new Error('Portfolio not found');
-  return { id: pf.id, name: pf.name, transactions: pf.transactions, holdings: computeHoldings(pf) };
+  const legacySnapshotRows = pf.transactions.filter((t) => !t.createdAt).length;
+  return {
+    id: pf.id,
+    name: pf.name,
+    transactions: pf.transactions,
+    holdings: computeHoldings(pf),
+    accounting: {
+      mode: legacySnapshotRows ? 'mixed-snapshot' : 'transaction-ledger',
+      legacySnapshotRows,
+      performanceStartsAtBaseline: true,
+    },
+  };
 }
 
 function addTransaction(id, { symbol, name, type, qty, price, date }) {
   const st = loadState();
   const pf = st.portfolios.find((p) => p.id === id);
   if (!pf) throw new Error('Portfolio not found');
-  if (!symbol || !isFinite(qty) || !isFinite(price) || qty <= 0 || price < 0) {
+  const normalizedDate = parseDate(date || new Date().toISOString().slice(0, 10));
+  if (!symbol || !isFinite(qty) || !isFinite(price) || qty <= 0 || price <= 0 || !normalizedDate) {
     throw new Error('Invalid transaction');
   }
-  pf.transactions.push({
+  const normalizedType = type === 'SELL' ? 'SELL' : 'BUY';
+  if (normalizedType === 'SELL') {
+    const held = computeHoldings(pf).find((h) => h.symbol === symbol)?.qty || 0;
+    if (+qty > held + 1e-8) throw new Error(`Sell quantity exceeds available holding (${held})`);
+  }
+  const tx = {
     id: 'tx' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
     symbol,
     name: name || symbol,
-    type: type === 'SELL' ? 'SELL' : 'BUY',
+    type: normalizedType,
     qty: +qty,
     price: +price,
-    date: date || new Date().toISOString().slice(0, 10),
-  });
+    date: normalizedDate,
+    createdAt: Date.now(),
+    importSource: 'manual',
+  };
+  tx.sourceId = sourceKey(tx);
+  pf.transactions.push(tx);
   saveState(st);
   return getPortfolio(id);
+}
+
+/**
+ * Auditable quantity adjustment for a confirmed split or bonus issue.
+ * ratio is "new shares per existing share": 2 for a 1:2 split, 1 for a 1:1
+ * bonus. Original buys/sells and total carrying cost remain untouched.
+ */
+function applyCorporateAction(id, { symbol, type, ratio, date, note }) {
+  const st = loadState();
+  const pf = st.portfolios.find((p) => p.id === id);
+  if (!pf) throw new Error('Portfolio not found');
+  const normalizedType = String(type || '').toUpperCase();
+  if (!['SPLIT', 'BONUS'].includes(normalizedType)) throw new Error('Unsupported corporate action');
+  const normalizedDate = parseDate(date || new Date().toISOString().slice(0, 10));
+  const actionRatio = +ratio;
+  if (!symbol || !normalizedDate || !(actionRatio > 0)) throw new Error('Invalid corporate action');
+  const holding = computeHoldings(pf).find((h) => h.symbol === symbol);
+  if (!holding) throw new Error('Holding not found');
+  const tx = {
+    id: 'tx' + Date.now() + '_corp',
+    symbol,
+    name: holding.name || symbol,
+    type: normalizedType,
+    qty: holding.qty,
+    price: 0,
+    ratio: actionRatio,
+    date: normalizedDate,
+    createdAt: Date.now(),
+    importSource: 'corporate-action',
+    note: note || `User-confirmed ${normalizedType.toLowerCase()} adjustment`,
+  };
+  tx.sourceId = sourceKey({ ...tx, price: actionRatio });
+  if (pf.transactions.some((t) => t.sourceId === tx.sourceId)) throw new Error('Corporate action already recorded');
+  pf.transactions.push(tx);
+  saveState(st);
+  return getPortfolio(id);
+}
+
+/**
+ * Net external capital added between two instants. Buys are contributions and
+ * sells are withdrawals. Adjustments/splits/bonuses are internal and excluded.
+ */
+function externalFlowBetween(startMs, endMs) {
+  const st = loadState();
+  let total = 0;
+  for (const pf of st.portfolios) {
+    for (const tx of pf.transactions) {
+      if (!['BUY', 'SELL'].includes(tx.type)) continue;
+      // Legacy seed/import rows have no trustworthy ingestion timestamp. Counting
+      // their trade date after a newly-created snapshot would manufacture a huge
+      // cash flow and corrupt the benchmark. Only events recorded by the current
+      // audited transaction pipeline participate in time-weighted returns.
+      if (!tx.createdAt) continue;
+      const at = tx.createdAt;
+      if (!Number.isFinite(at) || at <= startMs || at > endMs) continue;
+      const value = (+tx.qty || 0) * (+tx.price || 0);
+      total += tx.type === 'BUY' ? value : -value;
+    }
+  }
+  return total;
 }
 
 function deleteTransaction(id, txId) {
@@ -395,7 +559,7 @@ function reconcileCost(id, symbol, avgPrice) {
   if (!Number.isFinite(price) || price <= 0) throw new Error('Invalid average cost');
   const txs = pf.transactions.filter((t) => t.symbol === symbol);
   if (!txs.length) throw new Error('Holding not found');
-  const netQty = txs.reduce((a, t) => a + (t.type === 'SELL' ? -t.qty : t.qty), 0);
+  const netQty = computeHoldings(pf).find((h) => h.symbol === symbol)?.qty || 0;
   if (netQty <= 0) throw new Error('No net quantity to reconcile');
   const name = txs[txs.length - 1].name || symbol;
   pf.transactions.push({
@@ -406,6 +570,7 @@ function reconcileCost(id, symbol, avgPrice) {
     price,
     date: new Date().toISOString().slice(0, 10),
     reconciled: true,
+    createdAt: Date.now(),
     note: 'User-confirmed cost-basis adjustment; original transactions preserved',
   });
   saveState(st);
@@ -426,7 +591,9 @@ function getAllAccounts() {
   const st = loadState();
   const merged = new Map();
   const accounts = [];
+  let legacySnapshotRows = 0;
   for (const pf of st.portfolios) {
+    legacySnapshotRows += pf.transactions.filter((t) => !t.createdAt).length;
     const holdings = computeHoldings(pf);
     accounts.push({ id: pf.id, name: pf.name, holdings });
     for (const h of holdings) {
@@ -445,7 +612,17 @@ function getAllAccounts() {
     ...m,
     avgPrice: m.qty > 0 ? m.invested / m.qty : 0,
   }));
-  return { id: 'all', name: 'All Accounts', holdings, accounts };
+  return {
+    id: 'all',
+    name: 'All Accounts',
+    holdings,
+    accounts,
+    accounting: {
+      mode: legacySnapshotRows ? 'mixed-snapshot' : 'transaction-ledger',
+      legacySnapshotRows,
+      performanceStartsAtBaseline: true,
+    },
+  };
 }
 
 /** Every symbol/name the user actually holds — used for OCR fuzzy-repair. */
@@ -470,6 +647,8 @@ module.exports = {
   deletePortfolio,
   getPortfolio,
   reconcileCost,
+  applyCorporateAction,
+  externalFlowBetween,
   addTransaction,
   deleteTransaction,
   removeHolding,

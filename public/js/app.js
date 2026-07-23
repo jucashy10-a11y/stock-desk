@@ -7,6 +7,9 @@ const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
 const app = $('#app');
 
 let pollTimer = null;
+let routeGeneration = 0;
+let routeController = new AbortController();
+const pageAlive = (generation) => generation === routeGeneration;
 function setPoll(fn, ms) {
   clearInterval(pollTimer);
   if (fn) pollTimer = setInterval(fn, ms);
@@ -15,9 +18,11 @@ function setPoll(fn, ms) {
 // ---------------- utils ----------------
 
 async function api(path, opts = {}) {
+  const signal = opts.signal || routeController.signal;
   const res = await fetch(path, {
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
     ...opts,
+    signal,
   });
   const j = await res.json().catch(() => ({}));
   if (res.status === 401 && j.error === 'auth required') {
@@ -101,6 +106,8 @@ function currencyPrefix(code) {
 function toast(msg, type = '') {
   const t = document.createElement('div');
   t.className = 'toast ' + type;
+  t.setAttribute('role', type === 'err' ? 'alert' : 'status');
+  t.setAttribute('aria-live', type === 'err' ? 'assertive' : 'polite');
   t.textContent = msg;
   $('#toast-wrap').appendChild(t);
   setTimeout(() => t.remove(), 4200);
@@ -109,11 +116,27 @@ function toast(msg, type = '') {
 function modal(title, bodyHtml) {
   const ov = document.createElement('div');
   ov.className = 'modal-overlay';
-  ov.innerHTML = `<div class="modal"><div class="modal-head"><h3>${esc(title)}</h3>
-    <button class="modal-close">×</button></div><div class="modal-body">${bodyHtml}</div></div>`;
-  ov.addEventListener('click', (e) => { if (e.target === ov) ov.remove(); });
-  $('.modal-close', ov).onclick = () => ov.remove();
+  const titleId = `modal-title-${Date.now()}`;
+  ov.innerHTML = `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="${titleId}" tabindex="-1"><div class="modal-head"><h3 id="${titleId}">${esc(title)}</h3>
+    <button class="modal-close" type="button" aria-label="Close dialog">×</button></div><div class="modal-body">${bodyHtml}</div></div>`;
+  const close = () => {
+    ov.remove();
+    document.removeEventListener('keydown', onKey);
+  };
+  const onKey = (e) => {
+    if (e.key === 'Escape') close();
+    if (e.key !== 'Tab') return;
+    const focusable = $$('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href]', ov);
+    if (!focusable.length) return;
+    const first = focusable[0], last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  };
+  ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
+  $('.modal-close', ov).onclick = close;
+  document.addEventListener('keydown', onKey);
   document.body.appendChild(ov);
+  setTimeout(() => ($('input, select, button', ov) || $('.modal', ov))?.focus(), 0);
   return ov;
 }
 
@@ -269,6 +292,58 @@ async function refreshTicker() {
   });
 })();
 
+// ---------------- progressive accessibility ----------------
+
+function enhanceAccessibility(root = document) {
+  $$('.page-title', root).forEach((el) => {
+    el.setAttribute('role', 'heading');
+    el.setAttribute('aria-level', '1');
+  });
+  $$('.field', root).forEach((field, index) => {
+    const label = $('label', field);
+    const control = $('input, select, textarea', field);
+    if (!label || !control) return;
+    if (!control.id) control.id = `field-${Date.now()}-${index}`;
+    label.htmlFor = control.id;
+  });
+  $$('input[placeholder]:not([aria-label]), select:not([aria-label])', root).forEach((control) => {
+    const label = control.closest('.field')?.querySelector('label')?.textContent?.trim();
+    control.setAttribute('aria-label', label || control.getAttribute('placeholder') || 'Input');
+  });
+  $$('[onclick]:not(button):not(a)', root).forEach((el) => {
+    if (!el.hasAttribute('tabindex')) el.tabIndex = 0;
+    if (!el.hasAttribute('role')) el.setAttribute('role', 'link');
+    if (el.dataset.keyboardReady) return;
+    el.dataset.keyboardReady = '1';
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        el.click();
+      }
+    });
+  });
+  $$('.stock-tabs, .sig-tabs, .seg', root).forEach((tabs) => {
+    tabs.setAttribute('role', 'tablist');
+    $$('button', tabs).forEach((button) => {
+      button.setAttribute('role', 'tab');
+      button.setAttribute('aria-selected', String(button.classList.contains('active')));
+    });
+  });
+  $$('canvas:not([aria-label])', root).forEach((canvas) => {
+    canvas.setAttribute('role', 'img');
+    canvas.setAttribute('aria-label', 'Price chart. Use the statistics and data tables for a text summary.');
+  });
+}
+
+const accessibilityObserver = new MutationObserver(() => enhanceAccessibility(document));
+accessibilityObserver.observe(document.body, {
+  childList: true,
+  subtree: true,
+  attributes: true,
+  attributeFilter: ['class'],
+});
+enhanceAccessibility(document);
+
 // ---------------- router ----------------
 
 const routes = {
@@ -283,6 +358,9 @@ const routes = {
 };
 
 function route() {
+  routeController.abort();
+  routeController = new AbortController();
+  routeGeneration++;
   const hash = location.hash.replace(/^#\/?/, '');
   const [pathPart] = hash.split('?');
   const parts = pathPart.split('/').filter(Boolean);
@@ -341,6 +419,7 @@ function refreshTerminalRail() {
 }
 
 async function renderDashboard() {
+  const generation = routeGeneration;
   app.innerHTML = `
     <section class="mobile-launchpad">
       <div class="ml-welcome">
@@ -414,6 +493,7 @@ async function renderDashboard() {
     try {
       const econSyms = ['USDINR=X', 'GC=F', 'SI=F', 'CL=F', '^INDIAVIX', '^GSPC', 'DX-Y.NYB'];
       const eq = await api('/api/quotes?symbols=' + encodeURIComponent(econSyms.join(',')));
+      if (!pageAlive(generation)) return;
       const chip = (label, s, fmt = (v) => inr(v)) => {
         const q = eq[s];
         if (!q?.price) return '';
@@ -429,13 +509,14 @@ async function renderDashboard() {
     // top opportunity (only when a scan is already fresh — never triggers one)
     try {
       const st = await api('/api/ideas?peek=1');
+      if (!pageAlive(generation)) return;
       const pick = st.status === 'ready' ? (st.results.shortTerm[0] || st.results.longTerm[0]) : null;
       $('#dh-opp').innerHTML = pick
         ? `<div class="dh-opp-label">TOP OPPORTUNITY TODAY</div>
            <div class="dh-opp-body" onclick="location.hash='#/stock/${encodeURIComponent(pick.symbol)}'">
              <div><b>${esc(dispSym(pick.symbol))}</b><span class="muted2">${esc(pick.name)}</span></div>
-             <div class="num up">up to ${pct(pick.potentialPct)}</div>
-             <div class="muted2">score ${pick.composite}/100 · ${esc(pick.conviction)} conviction</div>
+             <div class="num up">bull scenario ${pct(pick.potentialPct)}</div>
+             <div class="muted2">deterministic score ${pick.composite}/100 · not a forecast</div>
            </div>`
         : `<div class="dh-opp-label">IDEA SCANNER</div>
            <div class="dh-opp-body" onclick="location.hash='#/ideas'">
@@ -445,6 +526,7 @@ async function renderDashboard() {
     // watchlist
     try {
       const wl = await api('/api/watchlist');
+      if (!pageAlive(generation)) return;
       $('#wl-body').innerHTML = wl.length
         ? `<table class="data"><tbody>${wl.map((w) => `
             <tr onclick="location.hash='#/stock/${encodeURIComponent(w.symbol)}'">
@@ -465,6 +547,7 @@ async function renderDashboard() {
     // my portfolio today (summary only; heavier detail lives on the Portfolio tab)
     try {
       const pf = await api('/api/portfolios/all');
+      if (!pageAlive(generation)) return;
       const s = pf.summary;
       const movers = pf.holdings.filter((h) => h.dayPnl != null).sort((a, b) => b.dayPnl - a.dayPnl);
       const up = movers[0], down = movers[movers.length - 1];
@@ -483,6 +566,7 @@ async function renderDashboard() {
     // alerts
     try {
       const al = await api('/api/alerts');
+      if (!pageAlive(generation)) return;
       $('#alerts-body').innerHTML = al.length
         ? `<div class="alerts-list">${al.map((a) => `
             <div class="alert-row ${a.status === 'triggered' ? 'fired' : ''}">
@@ -502,6 +586,7 @@ async function renderDashboard() {
   async function load() {
     try {
       const [indices, market] = await Promise.all([api('/api/indices'), api('/api/market')]);
+      if (!pageAlive(generation)) return;
       const nifty = indices.find((i) => i.name === 'NIFTY 50')?.quote;
       const sensex = indices.find((i) => i.name === 'SENSEX')?.quote;
       $('#dh-idx').innerHTML = [['NIFTY', nifty], ['SENSEX', sensex]]
@@ -545,10 +630,12 @@ async function renderDashboard() {
         </div>`;
       $('#dash-sub').innerHTML = `Indian equities at a glance — data source: <b>${market.source === 'kite' ? 'Zerodha Kite (LIVE)' : 'Yahoo Finance (delayed ~15 min)'}</b> · updated ${istTime()}`;
     } catch (e) {
+      if (!pageAlive(generation) || e.name === 'AbortError') return;
       toast('Failed to load market data: ' + e.message, 'err');
     }
   }
   await load();
+  if (!pageAlive(generation)) return;
   loadExtras();
   setPoll(() => { load(); loadExtras(); }, 15000);
 }
@@ -589,10 +676,12 @@ async function renderMarkets() {
         <button class="btn sm" id="sc-export">⬇ CSV</button>
       </div>
       <div style="overflow-x:auto" id="mkt-table"><div class="spinner"></div></div>
+      <div id="mkt-more" class="list-more"></div>
     </div>`;
 
   let rows = [];
   let mktView = 'table';
+  let visibleLimit = window.matchMedia('(max-width: 680px)').matches ? 50 : Infinity;
   const screen = JSON.parse(localStorage.getItem('mktScreen') || '{}');
 
   function applyScreen(list) {
@@ -683,7 +772,16 @@ async function renderMarkets() {
       const vb = key === 'name' ? b.name : b.quote[key] ?? -Infinity;
       return (va > vb ? 1 : va < vb ? -1 : 0) * dir;
     });
-    $('#mkt-count').textContent = view.length + ' stocks';
+    const totalView = view.length;
+    $('#mkt-count').textContent = totalView + ' stocks';
+    if (Number.isFinite(visibleLimit)) view = view.slice(0, visibleLimit);
+    const more = $('#mkt-more');
+    if (more) {
+      more.innerHTML = totalView > view.length
+        ? `<button class="btn" id="mkt-load-more">Show ${Math.min(50, totalView - view.length)} more · ${view.length}/${totalView}</button>`
+        : '';
+      $('#mkt-load-more')?.addEventListener('click', () => { visibleLimit += 50; draw(); });
+    }
 
     if (mktView === 'heat') return drawHeatmap(view);
 
@@ -808,18 +906,19 @@ async function renderSignals() {
       </div>
       <div class="s-name" style="margin:2px 0 10px">${esc(s.name)} · ₹${inr(s.price)}</div>
       <div class="sig-levels">
-        <div class="sl"><span>ENTRY</span><b>₹${inr(s.entry)}</b></div>
+        <div class="sl"><span>SIGNAL CLOSE</span><b>₹${inr(s.entry)}</b><small>next open tracked</small></div>
         <div class="sl"><span>STOP</span><b class="down">₹${inr(s.stop)} <small>${pct(s.stopPct)}</small></b></div>
         <div class="sl"><span>TARGET</span><b class="up">₹${inr(s.target)} <small>+${s.targetPct}%</small></b></div>
         <div class="sl"><span>R:R</span><b style="color:${rrColor}">${s.rr} : 1</b></div>
       </div>
       <div class="sig-meta">
-        <span title="Unvalidated rule prior; not a backtest">Rule prior ~${s.referenceRate ?? '—'}%</span>
         <span>Risk ${fx(s.riskPct, 2, '%')}</span>
         <span title="Illustrative only: ₹10,000 divided by entry-minus-stop">₹10k-risk qty ${inr(exampleQty, 0)}</span>
         <span>Expires ${s.expirySessions ?? 5} sessions</span>
         <span>RSI ${s.rsi ?? '—'}</span>
         <span>Vol ${s.volMult}×</span>
+        <span title="20-session average traded value">Liquidity ₹${inrShort(s.averageTradedValue)}</span>
+        <span>${s.adjustedPrices ? 'Adjusted OHLC' : 'Raw OHLC'}</span>
         ${s.rs63 != null ? `<span title="63-session return minus NIFTY's — positive = outperforming the index" class="${cls(s.rs63)}">RS ${pct(s.rs63)}</span>` : ''}
       </div>
       <ul class="pt-list" style="margin-top:8px">
@@ -847,14 +946,15 @@ async function renderSignals() {
       return;
     }
     const r = st.results;
-    $('#sig-sub').textContent = `${r.totalSetups} live setups across ${r.scanned} charts · updated ${istTime(st.builtAt)} · auto-refreshes`;
+    $('#sig-sub').textContent = `${r.totalSetups} EOD setups · ${r.scanned}/${r.attempted || r.scanned} charts succeeded${r.failed ? ` · ${r.failed} failed` : ''} · ${r.adjustedCharts ?? 0}/${r.scanned} adjusted-OHLC charts · as of ${istTime(st.builtAt)}`;
 
     const measuredChip = (m) => {
       if (!m || m.winRate == null) {
-        return `<span class="measured-chip pending" title="The scanner tracks every setup it publishes; measured win-rates appear after 5+ closed outcomes">Measured: building record${m && m.closed ? ` (${m.closed} closed)` : ''}…</span>`;
+        return `<span class="measured-chip pending" title="Measured net rates appear after 20 closed trades; expiries remain in the denominator">Measured: building record${m && m.closed ? ` (${m.closed}/20 closed)` : ''}…</span>`;
       }
       const good = m.winRate >= 50;
-      return `<span class="measured-chip ${good ? 'up' : 'down'}" title="This scanner's own tracked outcomes: ${m.wins}W / ${m.losses}L / ${m.expired} expired">Measured: ${m.winRate}% wins (${m.closed} closed)</span>`;
+      const ci = m.confidenceInterval ? ` · 95% CI ${m.confidenceInterval.low}–${m.confidenceInterval.high}%` : '';
+      return `<span class="measured-chip ${good ? 'up' : 'down'}" title="Positive net outcomes after costs: ${m.profitable}/${m.sampleSize}${ci}; ${m.expired} expired included">Measured: ${m.winRate}% profitable (${m.sampleSize})</span>`;
     };
 
     const regimeBanner = r.regime ? `
@@ -868,11 +968,11 @@ async function renderSignals() {
     const trackRecord = ov && ov.closed > 0 ? `
       <div class="track-strip">
         📒 <b>Scanner track record</b> — ${ov.wins} target hits · ${ov.losses} stopped · ${ov.expired} expired
-        ${ov.winRate != null ? ` · <b>${ov.winRate}% win-rate</b>` : ''}
+        ${ov.winRate != null ? ` · <b>${ov.winRate}% profitable net</b>${ov.confidenceInterval ? ` (95% CI ${ov.confidenceInterval.low}–${ov.confidenceInterval.high}%)` : ''}` : ''}
         ${ov.avgResultPct != null ? ` · avg ${pct(ov.avgResultPct)}/trade` : ''}
-        · ${ov.open} open now — every published setup is tracked to its outcome
+        · ${ov.pending || 0} awaiting next-open entry · ${ov.open} open now · ${ov.missed || 0} gap-missed
       </div>` : `
-      <div class="track-strip">📒 <b>Outcome tracking is ON</b> — every setup below is now recorded and marked to target/stop/expiry. Measured win-rates replace “rule priors” as evidence accumulates.</div>`;
+      <div class="track-strip">📒 <b>Executable outcome tracking is ON</b> — next-session entry, gap rejection, adjusted OHLC, liquidity floor, slippage and costs. Expiries count; rates stay hidden below 20 outcomes.</div>`;
 
     const warningsBlock = (r.warnings || []).length ? `
       <div style="margin-bottom:22px">
@@ -891,15 +991,25 @@ async function renderSignals() {
             <ul class="pt-list">${w.reasons.map((x) => `<li class="neg"><span class="ico">−</span><span style="font-size:.76rem">${esc(x)}</span></li>`).join('')}</ul>
           </div>`).join('')}</div>
       </div>` : '';
+    const scanHealth = r.failed ? `
+      <details class="data-health-warning">
+        <summary>${r.failed} chart${r.failed === 1 ? '' : 's'} failed — results are partial</summary>
+        <div>${(r.failures || []).map((x) => `<span><b>${esc(dispSym(x.symbol))}</b>: ${esc(x.error)}</span>`).join('')}</div>
+      </details>` : '';
+    const compactPhone = window.matchMedia('(max-width: 680px)').matches;
+    const groupsForView = compactPhone
+      ? r.groups.map((g) => ({ ...g, setups: g.setups.slice(0, 6), totalSetups: g.setups.length }))
+      : r.groups.map((g) => ({ ...g, totalSetups: g.setups.length }));
 
     $('#sig-body').innerHTML = `
       ${regimeBanner}
       ${trackRecord}
+      ${scanHealth}
       <div style="display:flex; justify-content:flex-end; margin-bottom:10px"><button class="btn sm" id="sig-rescan">↻ Re-scan now</button></div>
       ${warningsBlock}
-      ${r.groups.map((g) => `<div style="margin-bottom:22px">
+      ${groupsForView.map((g) => `<div style="margin-bottom:22px">
         <div style="display:flex; align-items:baseline; gap:10px; margin-bottom:10px; flex-wrap:wrap">
-          <div class="card-title">${esc(g.label)} <span style="color:var(--muted)">(${g.setups.length})</span></div>
+          <div class="card-title">${esc(g.label)} <span style="color:var(--muted)">(${g.setups.length}${g.totalSetups > g.setups.length ? ` of ${g.totalSetups}` : ''})</span></div>
           <span class="muted" style="font-size:.74rem">${esc(g.subtitle)}</span>
           ${measuredChip(g.measured)}
         </div>
@@ -954,7 +1064,7 @@ async function renderIdeasInto(container) {
       <button class="btn sm" id="ideas-refresh">↻ Re-scan</button>
     </div>
     <div class="disclaimer" style="margin:10px 0 16px">
-      ⚠ These are <b>algorithmic research candidates</b>, not tips or guaranteed returns. A “2X candidate” means the strict four-year
+      ⚠ These are <b>deterministic algorithmic research candidates</b>; no LLM or generative-AI model produced them. They are not tips or guaranteed returns. A “2X candidate” means the strict four-year
       base-case model reaches 2× using verified growth, cash flow, balance-sheet and valuation assumptions. The model can be wrong and stocks can fall.
     </div>`;
   host.innerHTML = header +
@@ -966,7 +1076,7 @@ async function renderIdeasInto(container) {
 
   function pickCard(p, horizon) {
     const upLabel = horizon === 'short' ? '3-month view' : horizon === 'twoX' ? '4-year base-case model' : '12-month view';
-    const expectedLabel = horizon === 'twoX' ? '4Y base case' : 'Expected';
+    const expectedLabel = horizon === 'twoX' ? '4Y base case' : 'Base scenario';
     return `<div class="idea-card" onclick="location.hash='#/stock/${encodeURIComponent(p.symbol)}'">
       <div class="ic-head">
         <div>
@@ -977,8 +1087,8 @@ async function renderIdeasInto(container) {
       </div>
       <div class="s-name" style="margin:2px 0 6px">${esc(p.name)} · ${esc(p.sector || '')}</div>
       <div style="margin-bottom:10px">${p.conviction === 'HIGH'
-        ? '<span class="chg-pill up" style="font-size:.64rem; letter-spacing:.5px">★ HIGH CONVICTION</span>'
-        : '<span class="chg-pill" style="font-size:.64rem; letter-spacing:.5px; background:#eef2f7; color:#64748b">MODERATE CONVICTION</span>'}</div>
+        ? '<span class="chg-pill up" style="font-size:.64rem; letter-spacing:.5px">★ HIGH MODEL SCORE</span>'
+        : '<span class="chg-pill" style="font-size:.64rem; letter-spacing:.5px; background:#eef2f7; color:#64748b">MODERATE MODEL SCORE</span>'}</div>
       <div class="ic-nums">
         <div><span>Price</span><b class="num">₹${inr(p.price)}</b></div>
         <div><span>${expectedLabel}</span><b class="num ${cls(p.expectedPct)}">₹${inr(p.expected, 0)} (${pct(p.expectedPct)})</b></div>
@@ -988,7 +1098,7 @@ async function renderIdeasInto(container) {
         ${p.twoX ? `<div><span>Growth assumed</span><b class="num">${pct(p.growthAssumption)}</b></div>
         <div><span>2X CAGR required</span><b class="num">${pct(p.requiredCagr)}</b></div>` : ''}
       </div>
-      <div class="ic-potential ${p.potentialPct >= 25 ? 'up' : ''}">▲ up to ${pct(p.potentialPct)} <small>· ${upLabel}</small></div>
+      <div class="ic-potential ${p.potentialPct >= 25 ? 'up' : ''}">Bull scenario ${pct(p.potentialPct)} <small>· ${upLabel} · not a forecast</small></div>
       <ul class="pt-list" style="margin-top:8px">
         ${p.reasons.map((x) => `<li class="pos"><span class="ico">+</span><span style="font-size:.76rem">${esc(x)}</span></li>`).join('')}
         ${p.topRisk ? `<li class="neg"><span class="ico">−</span><span style="font-size:.76rem">${esc(p.topRisk)}</span></li>` : ''}
@@ -1019,7 +1129,7 @@ async function renderIdeasInto(container) {
         return;
       }
       const r = st.results;
-      $('#ideas-sub').textContent = `Researched ${r.researched ?? r.scanned}/${r.scanned} shortlisted from ${r.universe} stocks · live prices: ${(r.liveSource || 'yahoo').toUpperCase()} · rebuilt ${new Date(st.builtAt).toLocaleTimeString('en-IN')} · refreshes every 30 min`;
+      $('#ideas-sub').textContent = `Researched ${r.researched ?? r.scanned}/${r.scanned} shortlisted from ${r.universe} stocks${r.failed ? ` · ${r.failed} failed` : ''} · live prices: ${(r.liveSource || 'yahoo').toUpperCase()} · rebuilt ${new Date(st.builtAt).toLocaleTimeString('en-IN')} · refreshes every 30 min`;
       const section = (title, subtitle, picks, horizon) => `
         <div style="margin-bottom:22px">
           <div style="display:flex; align-items:baseline; gap:10px; margin-bottom:10px">
@@ -1042,7 +1152,11 @@ async function renderIdeasInto(container) {
         .filter((s) => only === 'all' || s.key === only)
         .map((s) => section(s.label.toUpperCase(), s.subtitle, s.picks, s.horizon))
         .join('') || '<div class="card"><div class="empty">Nothing in this scanner right now.</div></div>';
-      $('#ideas-body').innerHTML = chips + `<div id="scanner-out">${renderScanners('all')}</div>`;
+      const failedResearch = r.failed ? `<details class="data-health-warning" style="margin-bottom:12px">
+        <summary>${r.failed} research request${r.failed === 1 ? '' : 's'} failed — candidate lists are partial</summary>
+        <div>${(r.failures || []).map((x) => `<span><b>${esc(dispSym(x.symbol))}</b>: ${esc(x.error)}</span>`).join('')}</div>
+      </details>` : '';
+      $('#ideas-body').innerHTML = failedResearch + chips + `<div id="scanner-out">${renderScanners('all')}</div>`;
       $$('#scanner-chips button').forEach((b) => {
         b.onclick = () => {
           $$('#scanner-chips button').forEach((x) => x.classList.remove('active'));
@@ -1530,29 +1644,33 @@ async function renderStock(params) {
     if (!v) return '';
     if (v.fairValue == null) {
       return `<div class="proj-card" style="margin-bottom:18px">
-        <h4>Model-implied Value</h4>
-        <div class="muted" style="font-size:.84rem">${esc(v.method)} — earnings-based valuation doesn't apply. Judge on revenue growth &amp; path to profitability instead.</div>
+        <h4>Valuation reference unavailable</h4>
+        <div style="font-weight:700;margin-bottom:7px">${esc(v.method)}</div>
+        <div class="muted" style="font-size:.84rem">${esc(v.warning || 'The available fields do not support a defensible reference range for this business.')}</div>
       </div>`;
     }
     const price = r.quote.price;
     const lo = Math.min(v.fairLow, price * 0.85), hi = Math.max(v.fairHigh, price * 1.15);
     const posOf = (x) => Math.max(2, Math.min(98, ((x - lo) / (hi - lo)) * 100));
     return `<div class="proj-card" style="margin-bottom:18px">
-      <h4>Model-implied Value · ${esc(v.method)}</h4>
+      <h4>Model reference range · ${esc(v.method)}</h4>
       <div style="display:flex; gap:26px; flex-wrap:wrap; align-items:baseline">
         <div><div class="proj-target ${cls(v.upsidePct)}">₹${inr(v.fairValue)}</div>
-        <div class="muted" style="font-size:.76rem">model sensitivity band ₹${inr(v.fairLow, 0)} – ₹${inr(v.fairHigh, 0)}</div></div>
+        <div class="muted" style="font-size:.76rem">wide reference band ₹${inr(v.fairLow, 0)} – ₹${inr(v.fairHigh, 0)}</div></div>
         <div style="font-size:.9rem">vs market price <b class="num">₹${inr(price)}</b> →
-          <b class="${cls(v.upsidePct)}">${v.upsidePct > 0 ? 'undervalued' : 'overvalued'} by ${Math.abs(v.upsidePct).toFixed(1)}%</b></div>
+          <b class="${cls(v.upsidePct)}">${pct(v.upsidePct)} to midpoint</b></div>
       </div>
       <div class="proj-range-bar" style="background:linear-gradient(90deg,#e88,#eee 45%,#7dc9a8)">
         <div class="proj-marker" style="left:calc(${posOf(price)}% - 2px)" title="Market price"></div>
-        <div class="proj-marker" style="left:calc(${posOf(v.fairValue)}% - 2px); background:var(--green)" title="Fair value"></div>
+        <div class="proj-marker" style="left:calc(${posOf(v.fairValue)}% - 2px); background:var(--green)" title="Reference midpoint"></div>
       </div>
       <div class="proj-ends"><span>₹${inr(lo, 0)}</span><span><span style="color:var(--navy)">▮</span> price · <span style="color:var(--green)">▮</span> model value</span><span>₹${inr(hi, 0)}</span></div>
       <div class="muted" style="font-size:.74rem; margin-top:10px">
-        EPS (TTM) ₹${inr(v.epsTtm)} × justified P/E ${v.justifiedPE.toFixed(1)} (from ~${v.growthUsed.toFixed(0)}% blended growth)${v.currentPE ? ` · market is paying ${v.currentPE.toFixed(1)}x` : ''}
+        ${esc(v.metricLabel || 'EPS (TTM)')} ${v.metricValue != null ? '₹' + inr(v.metricValue) : '—'}
+        ${v.multipleValue != null ? ` × ${esc(v.multipleLabel || 'reference multiple')} ${v.multipleValue.toFixed(1)}x` : ''}
+        ${v.currentPE ? ` · trailing P/E ${v.currentPE.toFixed(1)}x` : ''}
       </div>
+      <div class="connection-note" style="margin-top:10px"><b>Applicability: ${esc(v.applicability || 'limited')}</b><span>${esc(v.warning || 'Reference range, not a prediction or target price.')}</span></div>
     </div>`;
   }
 
@@ -1726,8 +1844,8 @@ async function renderStock(params) {
           </div>` : ''}
 
           <div class="grid" style="grid-template-columns: 1fr 1fr; margin-bottom:18px">
-            ${projCard('Short-term projection', r.shortTerm, r.quote.price)}
-            ${projCard('Long-term projection', r.longTerm, r.quote.price)}
+            ${projCard('Short-term deterministic scenario', r.shortTerm, r.quote.price)}
+            ${projCard('Long-term deterministic scenario', r.longTerm, r.quote.price)}
           </div>
 
           ${valuationCard(r)}
@@ -1826,6 +1944,7 @@ let mobHoldFilter = 'all';
 const PF_PALETTE = ['#2563eb', '#089c6c', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#f43f5e', '#0ea5e9', '#a16207', '#64748b'];
 
 async function renderPortfolio() {
+  let mobileHoldLimit = 50;
   app.innerHTML = `
     <div class="pf-page-head" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:12px">
       <div>
@@ -1837,6 +1956,7 @@ async function renderPortfolio() {
         <button class="btn sm" id="pf-rename">Rename</button>
         <button class="btn sm danger-ghost" id="pf-delete">Delete</button>
         <button class="btn primary sm" id="pf-add-tx">+ Add Stock</button>
+        <button class="btn sm" id="pf-corp">Corporate action</button>
         <button class="btn sm" id="pf-import">⬆ Import</button>
         <button class="btn sm" id="pf-shot">📷 Screenshot</button>
       </div>
@@ -1887,7 +2007,7 @@ async function renderPortfolio() {
       };
     });
     // account-specific actions don't apply to the combined view
-    for (const id of ['pf-rename', 'pf-delete', 'pf-add-tx', 'pf-import', 'pf-shot']) {
+    for (const id of ['pf-rename', 'pf-delete', 'pf-add-tx', 'pf-corp', 'pf-import', 'pf-shot']) {
       const el = $('#' + id);
       if (el) el.disabled = isAll();
     }
@@ -1898,9 +2018,13 @@ async function renderPortfolio() {
       pfData = await api('/api/portfolios/' + activePfId);
       drawHero();
       const warn = (pfData.insights?.insights || []).find((i) => i.level === 'warn');
-      $('#pf-warn').innerHTML = warn
-        ? `<div class="pf-warn-strip">⚠ ${esc(warn.text)}</div>`
-        : '';
+      const accountingWarn = pfData.accounting?.mode === 'mixed-snapshot'
+        ? `Accounting contains ${pfData.accounting.legacySnapshotRows} legacy snapshot row${pfData.accounting.legacySnapshotRows === 1 ? '' : 's'} without verified transaction timestamps. Holdings and P&amp;L are shown, but historical performance starts from the measured benchmark baseline.`
+        : null;
+      $('#pf-warn').innerHTML = [
+        accountingWarn ? `<div class="pf-warn-strip">ℹ ${accountingWarn}</div>` : '',
+        warn ? `<div class="pf-warn-strip">⚠ ${esc(warn.text)}</div>` : '',
+      ].join('');
       drawAccounts();
       drawMid();
       draw();
@@ -1947,7 +2071,7 @@ async function renderPortfolio() {
       }
       const p = h.since.portfolioPct, nf = h.since.niftyPct;
       const alpha = p != null && nf != null ? +(p - nf).toFixed(2) : null;
-      el.innerHTML = `<span>vs NIFTY since ${esc(h.since.baselineDate.slice(5))}</span>
+      el.innerHTML = `<span title="${esc(h.since.method || '')}">vs NIFTY since ${esc(h.since.baselineDate.slice(5))} · cash-flow adjusted</span>
         <b class="${cls(alpha)}">${p != null ? pct(p) : '—'} <small style="font-weight:600">(NIFTY ${nf != null ? pct(nf) : '—'}${alpha != null ? ` · α ${pct(alpha)}` : ''})</small></b>`;
     } catch { /* benchmark is additive; never break the hero */ }
   }
@@ -2104,6 +2228,8 @@ async function renderPortfolio() {
         if (mobHoldFilter === 'up') mRows = rows.filter((h) => (h.dayChangePct ?? 0) > 0);
         else if (mobHoldFilter === 'down') mRows = rows.filter((h) => (h.dayChangePct ?? 0) < 0);
         else if (mobHoldFilter === 'loss') mRows = rows.filter((h) => (h.pnl ?? 0) < 0);
+        const mobileTotal = mRows.length;
+        mRows = mRows.slice(0, mobileHoldLimit);
         const sortVal = `${pfSort.key}:${pfSort.dir}`;
         const sortOpts = [
           ['value:-1', 'Biggest first'],
@@ -2138,7 +2264,9 @@ async function renderPortfolio() {
                 <small>${h.value != null ? ((h.value / totalVal) * 100).toFixed(1) + '%' : ''}</small></span>
               <span class="num ${cls(h.pnl)}">${h.pnl != null ? money(h.pnl, true) : '—'} <small class="${cls(h.pnlPct)}">(${pct(h.pnlPct)})</small></span>
             </div>
-          </div>`).join('')}</div>`;
+          </div>`).join('')}</div>
+        ${mobileTotal > mRows.length ? `<div class="list-more"><button class="btn" id="pf-load-more">Show ${Math.min(50, mobileTotal - mRows.length)} more · ${mRows.length}/${mobileTotal}</button></div>` : ''}`;
+        $('#pf-load-more')?.addEventListener('click', () => { mobileHoldLimit += 50; draw(); });
         $$('#pf-body [data-mf]').forEach((b) => {
           b.onclick = () => { mobHoldFilter = b.dataset.mf; draw(); };
         });
@@ -2195,10 +2323,10 @@ async function renderPortfolio() {
           ${txs.map((t) => `<tr>
             <td class="num" style="text-align:left">${esc(t.date)}</td>
             <td style="text-align:left"><b>${esc(dispSym(t.symbol))}</b> <span class="muted" style="font-size:.75rem">${esc(t.name)}</span></td>
-            <td><span class="chg-pill ${t.type === 'BUY' ? 'up' : t.type === 'ADJUSTMENT' ? '' : 'down'}">${t.type === 'ADJUSTMENT' ? 'COST FIX' : t.type}</span></td>
+            <td><span class="chg-pill ${t.type === 'BUY' ? 'up' : t.type === 'SELL' ? 'down' : ''}">${t.type === 'ADJUSTMENT' ? 'COST FIX' : t.type}</span></td>
             <td class="num">${inr(t.qty, 0)}</td>
-            <td class="num">₹${inr(t.price)}</td>
-            <td class="num">₹${inr(t.qty * t.price, 0)}</td>
+            <td class="num">${['SPLIT', 'BONUS'].includes(t.type) ? `ratio ${inr(t.ratio, 2)}` : `₹${inr(t.price)}`}</td>
+            <td class="num">${['SPLIT', 'BONUS'].includes(t.type) ? 'No cash flow' : `₹${inr(t.qty * t.price, 0)}`}</td>
             <td><button class="btn sm danger-ghost" data-deltx="${t.id}">✕</button></td>
           </tr>`).join('')}</tbody></table>`
         : '<div class="empty">No transactions yet.</div>';
@@ -2309,6 +2437,45 @@ async function renderPortfolio() {
     };
   };
 
+  $('#pf-corp').onclick = () => {
+    const options = (pfData?.holdings || [])
+      .map((h) => `<option value="${esc(h.symbol)}">${esc(dispSym(h.symbol))} — ${esc(h.name || h.symbol)}</option>`)
+      .join('');
+    if (!options) return toast('This account has no holdings', 'err');
+    const ov = modal('Record Corporate Action', `
+      <p class="muted" style="font-size:.8rem;line-height:1.55;margin-top:0">
+        Add a verified split or bonus as an auditable quantity event. Original buys, sells and carrying cost stay unchanged.
+      </p>
+      <div class="field"><label>Holding</label><select id="ca-symbol">${options}</select></div>
+      <div class="field"><label>Action</label><select id="ca-type">
+        <option value="SPLIT">Stock split</option><option value="BONUS">Bonus issue</option>
+      </select></div>
+      <div class="field"><label>Ratio</label><input id="ca-ratio" type="number" min="0.0001" step="0.0001" value="2" /></div>
+      <p class="muted" style="font-size:.75rem;line-height:1.45">
+        Split: enter new shares per old share (for 2-for-1, enter 2). Bonus: enter extra shares per existing share (for 1:1, enter 1).
+      </p>
+      <div class="field"><label>Effective date</label><input id="ca-date" type="date" value="${new Date().toISOString().slice(0, 10)}" /></div>
+      <div class="field"><label>Evidence / note</label><textarea id="ca-note" rows="2" placeholder="Exchange circular, broker statement, or reference"></textarea></div>
+      <button class="btn primary" id="ca-save" style="width:100%">Record verified action</button>`);
+    $('#ca-save', ov).onclick = async () => {
+      try {
+        await api(`/api/portfolios/${activePfId}/corporate-action`, {
+          method: 'POST',
+          body: JSON.stringify({
+            symbol: $('#ca-symbol', ov).value,
+            type: $('#ca-type', ov).value,
+            ratio: parseFloat($('#ca-ratio', ov).value),
+            date: $('#ca-date', ov).value,
+            note: $('#ca-note', ov).value.trim(),
+          }),
+        });
+        ov.remove();
+        toast('Corporate action recorded', 'ok');
+        load();
+      } catch (e) { toast(e.message, 'err'); }
+    };
+  };
+
   // CSV import
   $('#pf-import').onclick = () => {
     const ov = modal('Import Portfolio CSV', `
@@ -2326,6 +2493,7 @@ async function renderPortfolio() {
         const text = await file.text();
         const r = await api(`/api/portfolios/${activePfId}/import`, { method: 'POST', body: JSON.stringify({ csv: text }) });
         $('#imp-status', ov).innerHTML = `<b class="up">✓ Imported ${r.imported} transactions.</b>
+          ${r.skippedDuplicates ? `<div class="muted" style="margin-top:6px">Skipped ${r.skippedDuplicates} exact duplicate${r.skippedDuplicates === 1 ? '' : 's'}.</div>` : ''}
           ${r.failed.length ? `<div class="down" style="margin-top:6px">Could not match ${r.failed.length}: ${r.failed.map((f) => esc(f.name)).join(', ')}</div>` : ''}`;
         toast(`Imported ${r.imported} transactions`, 'ok');
         loadList();
@@ -2533,6 +2701,7 @@ async function renderPortfolio() {
 // ================= SETTINGS =================
 
 async function renderSettings() {
+  const generation = routeGeneration;
   const qs = new URLSearchParams((location.hash.split('?')[1] || ''));
   if (qs.get('kite') === 'connected') toast('Kite connected — live data enabled 🎉', 'ok');
   if (qs.get('kite') === 'error') toast('Kite login failed: ' + (qs.get('msg') || ''), 'err');
@@ -2553,6 +2722,10 @@ async function renderSettings() {
       <div class="card">
         <div class="card-head"><span class="card-title">Connection protection</span></div>
         <div class="card-body" id="kite-health-body"><div class="spinner"></div></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="card-title">Upstream data health</span><span id="source-health-badge"></span></div>
+        <div class="card-body" id="source-health-body"><div class="spinner"></div></div>
       </div>
       <div class="card">
         <div class="card-head"><span class="card-title">Zerodha redirect URL</span></div>
@@ -2594,9 +2767,34 @@ async function renderSettings() {
     location.reload();
   };
 
+  async function loadSourceHealth() {
+    try {
+      const health = await api('/api/data-health');
+      if (!pageAlive(generation)) return;
+      const failed = health.items.filter((x) => x.failures > 0 && (!x.lastSuccessAt || x.lastFailureAt > x.lastSuccessAt));
+      $('#source-health-badge').innerHTML = health.degraded
+        ? '<span class="chg-pill down">DEGRADED</span>'
+        : '<span class="chg-pill up">HEALTHY</span>';
+      $('#source-health-body').innerHTML = health.items.length
+        ? `<div class="source-health-list">${health.items.map((x) => `
+            <div class="source-health-row ${failed.includes(x) ? 'failed' : ''}">
+              <div><b>${esc(x.source)} · ${esc(x.operation)}</b>
+                <span>${x.lastSuccessAt ? `last success ${new Date(x.lastSuccessAt).toLocaleTimeString('en-IN')}` : 'no successful response yet'}</span></div>
+              <div><b>${x.successRate == null ? '—' : `${x.successRate}%`}</b><span>${x.attempts} request${x.attempts === 1 ? '' : 's'}</span></div>
+              ${x.lastError ? `<p>${esc(x.lastError)}${x.lastStatus ? ` · HTTP ${esc(x.lastStatus)}` : ''}</p>` : ''}
+            </div>`).join('')}</div>
+           <p class="muted" style="font-size:.75rem;line-height:1.5;margin:12px 0 0">Failed calls are visible here and in scanner completion counts. A fallback source is never presented as a successful primary-source scan.</p>`
+        : '<div class="empty">No upstream calls have run on this server yet.</div>';
+    } catch (e) {
+      if (pageAlive(generation) && e.name !== 'AbortError') $('#source-health-body').innerHTML = `<div class="empty">${esc(e.message)}</div>`;
+    }
+  }
+  loadSourceHealth();
+
   async function loadTelegram() {
     try {
       const st = await api('/api/telegram/status');
+      if (!pageAlive(generation)) return;
       $('#tg-badge').innerHTML = st.linked
         ? '<span class="chg-pill up">● LINKED</span>'
         : st.hasToken ? '<span class="chg-pill" style="background:var(--amber-bg,#fdf3e0);color:#a76b14">○ NOT LINKED</span>'
@@ -2632,13 +2830,14 @@ async function renderSettings() {
         toast(r.ok ? 'Sent — check Telegram 📱' : 'Send failed — check the token/link', r.ok ? 'ok' : 'err');
       };
     } catch (e) {
-      $('#tg-body').innerHTML = `<div class="empty">${esc(e.message)}</div>`;
+      if (pageAlive(generation) && e.name !== 'AbortError') $('#tg-body').innerHTML = `<div class="empty">${esc(e.message)}</div>`;
     }
   }
   loadTelegram();
 
-  async function loadKite() {
+  async function loadKiteRequest() {
     const st = await api('/api/kite/status');
+    if (!pageAlive(generation)) return;
     const reasonText = {
       missing_key: 'Add your Kite API key and secret to start.',
       not_connected: 'Credentials are saved, but today’s Kite login has not been completed.',
@@ -2725,6 +2924,9 @@ async function renderSettings() {
       } catch (e) { toast(e.message, 'err'); }
     };
   }
+  const loadKite = () => loadKiteRequest().catch((e) => {
+    if (pageAlive(generation) && e.name !== 'AbortError') toast(`Kite status unavailable: ${e.message}`, 'err');
+  });
   loadKite();
 }
 

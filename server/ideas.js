@@ -23,10 +23,11 @@ const POTENTIAL_MIN = 25; // % — the user's bar
 function mkPick(c, r, horizon) {
   const price = r.quote.price;
   const proj = horizon === 'short' ? r.shortTerm : r.longTerm;
-  const valUpside = r.valuation?.fairValue != null ? r.valuation.upsidePct : null;
-  // cap the valuation-gap contribution: beyond ~60% it's a model artifact, not a forecast
-  const potential =
-    horizon === 'short' ? proj.bullPct : Math.max(proj.bullPct, Math.min(valUpside ?? -Infinity, 60));
+  const valuationUsable = r.valuation?.applicability === 'standard' && r.valuation?.fairValue != null;
+  const valUpside = valuationUsable ? r.valuation.upsidePct : null;
+  // Potential is now one clearly named scenario: the volatility-based bull
+  // case. Valuation references remain separate and never inflate/cap this card.
+  const potential = proj.bullPct;
   return {
     symbol: c.symbol,
     name: c.name,
@@ -40,6 +41,7 @@ function mkPick(c, r, horizon) {
     technical: r.scores.technical,
     fundamental: r.scores.fundamental,
     confidence: r.scores.confidence,
+    dataCoverage: r.scores.dataCoverage ?? r.scores.confidence,
     risk: r.scores.risk,
     riskLabel: r.scores.riskLabel,
     expected: proj.expected,
@@ -50,14 +52,17 @@ function mkPick(c, r, horizon) {
     bearPct: proj.bearPct,
     potentialPct: potential,
     analystTarget: horizon === 'long' ? (r.longTerm.analystTarget ?? null) : null,
-    fairValue: r.valuation?.fairValue ?? null,
+    fairValue: valuationUsable ? (r.valuation?.fairValue ?? null) : null,
     fairUpsidePct: valUpside,
+    valuationApplicability: r.valuation?.applicability || 'not-applicable',
+    valuationMethod: r.valuation?.method || null,
     reasons: r.positives.slice(0, 3),
     topRisk: r.negatives[0] || null,
     rankScore:
       horizon === 'short'
         ? r.scores.technical * 0.6 + r.scores.composite * 0.4 + (proj.expectedPct || 0) * 2
-        : (r.scores.fundamental ?? 50) * 0.7 + r.scores.composite * 0.3 + Math.min(valUpside ?? 0, 60) * 0.5,
+        : (r.scores.fundamental ?? 50) * 0.65 + r.scores.composite * 0.25 +
+          Math.max(-20, Math.min(proj.expectedPct || 0, 30)) * 0.35,
   };
 }
 
@@ -138,7 +143,7 @@ async function build() {
 
   // ---- stage 2: full research on survivors ----
   const evaluated = [];
-  let failed = 0;
+  const failures = [];
   const CONC = 5;
   for (let i = 0; i < list.length; i += CONC) {
     await Promise.all(
@@ -146,9 +151,8 @@ async function build() {
         try {
           const r = await research.research(c.symbol, { sector: c.sector, liveQuote: c.liveQuote });
           evaluated.push({ c, r });
-        } catch {
-          /* skip symbols with data issues */
-          failed++;
+        } catch (e) {
+          failures.push({ symbol: c.symbol, error: String(e.message || 'research unavailable').slice(0, 160) });
         }
         state.progress++;
       })
@@ -180,10 +184,7 @@ async function build() {
     const f = r.fundamentals || {};
     const s = r.statements || {};
     const growth = Math.max(s.profitCagr3y ?? -99, f.earningsGrowth ?? -99, s.revenueCagr3y ?? -99);
-    const upside = Math.max(
-      r.longTerm.bullPct ?? -99,
-      Math.min(r.valuation?.fairValue != null ? r.valuation.upsidePct : -99, 60)
-    );
+    const upside = r.longTerm.bullPct ?? -99;
     const profitable = (f.profitMargin ?? 1) > 0 && (r.valuation?.epsTtm ?? 1) > 0;
     return (
       (r.scores.fundamental ?? 0) >= 70 &&
@@ -278,7 +279,8 @@ async function build() {
       scanners,
       scanned: list.length,
       researched: evaluated.length,
-      failed,
+      failed: failures.length,
+      failures: failures.slice(0, 25),
       universe: symbols.length,
       minPotentialPct: POTENTIAL_MIN,
       liveSource: Object.keys(kiteQuotes).length ? 'kite' : 'yahoo',

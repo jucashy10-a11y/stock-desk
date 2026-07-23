@@ -9,6 +9,7 @@ const UA =
 
 const cache = new Map();
 const TTL = 15 * 60 * 1000;
+const datahealth = require('./datahealth');
 
 const POS = /surge|jump|rall(y|ies)|gain|record|profit rise|beats|upgrade|buy|order win|wins|expansion|approval|strong|soar|dividend|bonus|growth/i;
 const NEG = /fall|drop|plunge|crash|loss|misses|downgrade|sell-off|probe|fraud|penalty|fine|weak|slump|layoff|default|resign|scam|debt worr/i;
@@ -25,12 +26,25 @@ function decode(s) {
 }
 
 async function forQuery(query) {
+  const startedAt = Date.now();
   const key = query.toLowerCase();
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < TTL) return hit.items;
   const url = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-IN&gl=IN&ceid=IN:en`;
-  const res = await fetch(url, { headers: { 'User-Agent': UA } });
-  if (!res.ok) throw new Error('news fetch ' + res.status);
+  let res;
+  try {
+    res = await fetch(url, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(15000) });
+  } catch (e) {
+    datahealth.failure('Google News', 'rss', { latencyMs: Date.now() - startedAt, error: e.message });
+    throw e;
+  }
+  if (!res.ok) {
+    datahealth.failure('Google News', 'rss', {
+      latencyMs: Date.now() - startedAt, status: res.status, error: `HTTP ${res.status}`,
+    });
+    throw new Error('news fetch ' + res.status);
+  }
+  datahealth.success('Google News', 'rss', { latencyMs: Date.now() - startedAt, status: res.status });
   const xml = await res.text();
   const items = [];
   for (const m of xml.matchAll(/<item>([\s\S]*?)<\/item>/g)) {

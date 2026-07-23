@@ -6,6 +6,7 @@
 
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
+const datahealth = require('./datahealth');
 
 let crumbState = { cookie: null, crumb: null, fetchedAt: 0 };
 
@@ -33,6 +34,7 @@ async function getCrumb(force = false) {
   const res = await fetch('https://fc.yahoo.com/', {
     headers: { 'User-Agent': UA },
     redirect: 'manual',
+    signal: AbortSignal.timeout(15000),
   }).catch(() => null);
   let cookie = '';
   if (res) {
@@ -43,6 +45,7 @@ async function getCrumb(force = false) {
   if (cookie) {
     const cr = await fetch('https://query1.finance.yahoo.com/v1/test/getcrumb', {
       headers: { 'User-Agent': UA, Cookie: cookie },
+      signal: AbortSignal.timeout(15000),
     }).catch(() => null);
     if (cr && cr.ok) {
       const text = (await cr.text()).trim();
@@ -54,6 +57,18 @@ async function getCrumb(force = false) {
 }
 
 async function yFetch(url, { withCrumb = false } = {}) {
+  const startedAt = Date.now();
+  const operation = (() => {
+    try {
+      const p = new URL(url).pathname;
+      if (p.includes('/chart/')) return 'chart';
+      if (p.includes('/quoteSummary/')) return 'fundamentals';
+      if (p.includes('/quote')) return 'quotes';
+      if (p.includes('/timeseries/')) return 'financials';
+      if (p.includes('/search')) return 'search';
+    } catch {}
+    return 'request';
+  })();
   const headers = { 'User-Agent': UA, Accept: 'application/json' };
   let finalUrl = url;
   if (withCrumb) {
@@ -61,7 +76,13 @@ async function yFetch(url, { withCrumb = false } = {}) {
     if (cookie) headers.Cookie = cookie;
     if (crumb) finalUrl += (url.includes('?') ? '&' : '?') + 'crumb=' + encodeURIComponent(crumb);
   }
-  let res = await fetch(finalUrl, { headers });
+  let res;
+  try {
+    res = await fetch(finalUrl, { headers, signal: AbortSignal.timeout(15000) });
+  } catch (e) {
+    datahealth.failure('Yahoo', operation, { latencyMs: Date.now() - startedAt, error: e.message });
+    throw e;
+  }
   if (res.status === 401 || res.status === 403) {
     // stale crumb — refresh once and retry
     const { cookie, crumb } = await getCrumb(true);
@@ -70,9 +91,22 @@ async function yFetch(url, { withCrumb = false } = {}) {
     if (withCrumb && crumb) {
       retryUrl += (url.includes('?') ? '&' : '?') + 'crumb=' + encodeURIComponent(crumb);
     }
-    res = await fetch(retryUrl, { headers });
+    try {
+      res = await fetch(retryUrl, { headers, signal: AbortSignal.timeout(15000) });
+    } catch (e) {
+      datahealth.failure('Yahoo', operation, { latencyMs: Date.now() - startedAt, error: e.message });
+      throw e;
+    }
   }
-  if (!res.ok) throw new Error(`Yahoo ${res.status} for ${url}`);
+  if (!res.ok) {
+    datahealth.failure('Yahoo', operation, {
+      latencyMs: Date.now() - startedAt,
+      status: res.status,
+      error: `Yahoo returned HTTP ${res.status}`,
+    });
+    throw new Error(`Yahoo ${res.status} for ${url}`);
+  }
+  datahealth.success('Yahoo', operation, { latencyMs: Date.now() - startedAt, status: res.status });
   return res.json();
 }
 
@@ -197,19 +231,35 @@ async function history(symbol, range = '1y', interval = '1d') {
   if (!r) throw new Error('no history for ' + symbol);
   const ts = r.timestamp || [];
   const q = r.indicators?.quote?.[0] || {};
+  const adjustedCloses = r.indicators?.adjclose?.[0]?.adjclose || [];
   const candles = [];
   for (let i = 0; i < ts.length; i++) {
     if (q.close?.[i] == null) continue;
+    // Yahoo's raw OHLC jumps across splits. Scale every OHLC field by the
+    // adjusted-close factor so indicators and outcomes remain continuous.
+    const rawClose = q.close[i];
+    const adjustedClose = adjustedCloses[i];
+    const factor = interval === '1d' && Number.isFinite(adjustedClose) && rawClose > 0
+      ? adjustedClose / rawClose
+      : 1;
     candles.push({
       time: ts[i],
-      open: q.open?.[i] ?? q.close[i],
-      high: q.high?.[i] ?? q.close[i],
-      low: q.low?.[i] ?? q.close[i],
-      close: q.close[i],
+      open: (q.open?.[i] ?? rawClose) * factor,
+      high: (q.high?.[i] ?? rawClose) * factor,
+      low: (q.low?.[i] ?? rawClose) * factor,
+      close: rawClose * factor,
       volume: q.volume?.[i] ?? 0,
     });
   }
-  const data = { symbol, range, interval, meta: r.meta, candles };
+  const data = {
+    symbol,
+    range,
+    interval,
+    meta: r.meta,
+    candles,
+    adjusted: interval === '1d' && adjustedCloses.some((x) => Number.isFinite(x)),
+    priceMethod: interval === '1d' ? 'corporate-action-adjusted OHLC' : 'raw intraday OHLC',
+  };
   const ttl = interval === '1m' || interval === '5m' ? 30 * 1000 : 5 * 60 * 1000;
   return cacheSet(key, data, ttl);
 }
@@ -256,6 +306,7 @@ async function fundamentals(symbol) {
     pe: g(r, 'summaryDetail.trailingPE'),
     forwardPE: g(r, 'summaryDetail.forwardPE') ?? g(r, 'defaultKeyStatistics.forwardPE'),
     pb: g(r, 'defaultKeyStatistics.priceToBook'),
+    bookValue: g(r, 'defaultKeyStatistics.bookValue'),
     eps: g(r, 'defaultKeyStatistics.trailingEps'),
     beta: g(r, 'summaryDetail.beta') ?? g(r, 'defaultKeyStatistics.beta'),
     divYield: (() => {

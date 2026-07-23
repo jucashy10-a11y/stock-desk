@@ -7,6 +7,7 @@
  */
 
 const yahoo = require('./yahoo');
+const datahealth = require('./datahealth');
 
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
@@ -161,9 +162,25 @@ function parseShareholding(html) {
 }
 
 async function fetchPage(base, consolidated) {
+  const startedAt = Date.now();
   const url = `https://www.screener.in/company/${encodeURIComponent(base)}/${consolidated ? 'consolidated/' : ''}`;
-  const res = await fetch(url, { headers: { 'User-Agent': UA, Accept: 'text/html' } });
-  if (!res.ok) return null;
+  let res;
+  try {
+    res = await fetch(url, {
+      headers: { 'User-Agent': UA, Accept: 'text/html' },
+      signal: AbortSignal.timeout(15000),
+    });
+  } catch (e) {
+    datahealth.failure('Screener', 'financials', { latencyMs: Date.now() - startedAt, error: e.message });
+    throw e;
+  }
+  if (!res.ok) {
+    datahealth.failure('Screener', 'financials', {
+      latencyMs: Date.now() - startedAt, status: res.status, error: `HTTP ${res.status}`,
+    });
+    return null;
+  }
+  datahealth.success('Screener', 'financials', { latencyMs: Date.now() - startedAt, status: res.status });
   return res.text();
 }
 
