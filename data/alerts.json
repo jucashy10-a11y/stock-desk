@@ -1,3 +1,69 @@
 {
-  "alerts": []
+  "alerts": [
+    {
+      "id": "al17847934819943pd6",
+      "symbol": "BAJAJ-AUTO.NS",
+      "name": "Bajaj Auto",
+      "type": "signal",
+      "price": null,
+      "pct": null,
+      "label": "Range Breakout: entry ₹11260, stop ₹10807.24, target ₹12165.53 (Q75)",
+      "status": "triggered",
+      "createdAt": 1784793481994,
+      "triggeredAt": 1784793481994,
+      "triggerNote": "Range Breakout: entry ₹11260, stop ₹10807.24, target ₹12165.53 (Q75)"
+    },
+    {
+      "id": "al1784793481995gxe8",
+      "symbol": "CHOLAFIN.NS",
+      "name": "Cholamandalam Finance",
+      "type": "signal",
+      "price": null,
+      "pct": null,
+      "label": "Golden Cross: entry ₹1707.8, stop ₹1682.18, target ₹1784.65 (Q78)",
+      "status": "triggered",
+      "createdAt": 1784793481995,
+      "triggeredAt": 1784793481995,
+      "triggerNote": "Golden Cross: entry ₹1707.8, stop ₹1682.18, target ₹1784.65 (Q78)"
+    },
+    {
+      "id": "al1784793481996xqug",
+      "symbol": "MAXHEALTH.NS",
+      "name": "Max Healthcare",
+      "type": "signal",
+      "price": null,
+      "pct": null,
+      "label": "Golden Cross: entry ₹1082.8, stop ₹1066.56, target ₹1131.53 (Q78)",
+      "status": "triggered",
+      "createdAt": 1784793481996,
+      "triggeredAt": 1784793481996,
+      "triggerNote": "Golden Cross: entry ₹1082.8, stop ₹1066.56, target ₹1131.53 (Q78)"
+    },
+    {
+      "id": "al1784793481996qkw7",
+      "symbol": "INDHOTEL.NS",
+      "name": "Indian Hotels (Taj)",
+      "type": "signal",
+      "price": null,
+      "pct": null,
+      "label": "Golden Cross: entry ₹722.2, stop ₹711.37, target ₹754.7 (Q78)",
+      "status": "triggered",
+      "createdAt": 1784793481996,
+      "triggeredAt": 1784793481996,
+      "triggerNote": "Golden Cross: entry ₹722.2, stop ₹711.37, target ₹754.7 (Q78)"
+    },
+    {
+      "id": "al17847934819978pxl",
+      "symbol": "E2E.NS",
+      "name": "E2E.NS",
+      "type": "signal",
+      "price": null,
+      "pct": null,
+      "label": "Momentum Leader: entry ₹492.1, stop ₹444.26, target ₹611.69 (Q72)",
+      "status": "triggered",
+      "createdAt": 1784793481997,
+      "triggeredAt": 1784793481997,
+      "triggerNote": "Momentum Leader: entry ₹492.1, stop ₹444.26, target ₹611.69 (Q72)"
+    }
+  ]
 }

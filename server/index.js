@@ -15,6 +15,7 @@ const commodities = require('./commodities');
 const news = require('./news');
 const ocr = require('./ocr');
 const signals = require('./signals');
+const ledger = require('./ledger');
 const alerts = require('./alerts');
 const gistsync = require('./gistsync');
 const fs = require('fs');
@@ -453,6 +454,84 @@ function holdingSymbols() {
 app.get('/api/signals', wrap(async (req, res) => {
   if (req.query.peek === '1') return res.json(signals.peek());
   res.json(signals.ensure(holdingSymbols(), req.query.force === '1'));
+}));
+
+/** The scanner's own tracked record: open setups + closed outcomes. */
+app.get('/api/signals/ledger', wrap(async (req, res) => {
+  res.json({ stats: ledger.stats(), recent: ledger.recent(40) });
+}));
+
+// signal→alert bridge: genuinely new, high-quality setups land in the alerts feed
+signals.setNewSetupHandler((fresh) => {
+  for (const s of fresh.slice(0, 5)) {
+    alerts.notify({
+      symbol: s.symbol,
+      name: s.name,
+      note: `${s.label}: entry ₹${s.entry}, stop ₹${s.stop}, target ₹${s.target} (Q${s.quality})`,
+    });
+  }
+});
+
+/**
+ * Daily portfolio snapshots → honest "since baseline" performance vs NIFTY.
+ * Imported holdings carry synthetic dates, so XIRR over them would be fake
+ * precision; a measured value series starting today is truthful instead.
+ */
+const SNAP_FILE = path.join(__dirname, '..', 'data', 'portfolio-history.json');
+function loadSnaps() {
+  try { return JSON.parse(fs.readFileSync(SNAP_FILE, 'utf8')).snaps || []; } catch { return []; }
+}
+function saveSnaps(snaps) {
+  fs.mkdirSync(path.dirname(SNAP_FILE), { recursive: true });
+  fs.writeFileSync(SNAP_FILE, JSON.stringify({ snaps }));
+  gistsync.backupSoon('portfolio-history.json', () => JSON.stringify({ snaps }));
+}
+async function snapshotsCloudRestore() {
+  const content = await gistsync.restore('portfolio-history.json');
+  if (!content) return;
+  try {
+    const p = JSON.parse(content);
+    if (Array.isArray(p.snaps)) {
+      fs.mkdirSync(path.dirname(SNAP_FILE), { recursive: true });
+      fs.writeFileSync(SNAP_FILE, content);
+    }
+  } catch {}
+}
+async function takeSnapshot() {
+  const agg = portfolio.getAllAccounts();
+  const symbols = [...new Set(agg.holdings.map((h) => h.symbol))];
+  const quotes = await getQuotes(symbols);
+  const valued = valueHoldings(agg.holdings, quotes);
+  const nq = await getQuotes(['^NSEI']);
+  const nifty = nq['^NSEI']?.price ?? null;
+  const date = new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+  const snaps = loadSnaps().filter((s) => s.date !== date);
+  snaps.push({ date, current: Math.round(valued.summary.current), invested: Math.round(valued.summary.invested), nifty });
+  saveSnaps(snaps.slice(-400));
+  return snaps[snaps.length - 1];
+}
+app.get('/api/portfolio-history', wrap(async (req, res) => {
+  const snaps = loadSnaps();
+  let since = null;
+  if (snaps.length) {
+    const base = snaps[0];
+    const agg = portfolio.getAllAccounts();
+    const quotes = await getQuotes([...new Set(agg.holdings.map((h) => h.symbol)), '^NSEI']);
+    const nowVal = valueHoldings(agg.holdings, quotes).summary.current;
+    const niftyNow = quotes['^NSEI']?.price ?? null;
+    since = {
+      baselineDate: base.date,
+      portfolioPct: base.current ? +(((nowVal - base.current) / base.current) * 100).toFixed(2) : null,
+      niftyPct: base.nifty && niftyNow ? +(((niftyNow - base.nifty) / base.nifty) * 100).toFixed(2) : null,
+    };
+  }
+  res.json({ snaps, since });
+}));
+
+/** One-time cost-basis fix for corporate-action outliers (TMCV/ZEAL class). */
+app.post('/api/portfolios/:id/reconcile', wrap(async (req, res) => {
+  const { symbol, avgPrice } = req.body || {};
+  res.json(portfolio.reconcileCost(req.params.id, symbol, avgPrice));
 }));
 
 /**
@@ -915,18 +994,25 @@ function istNow() {
   const d = new Date(Date.now() + 5.5 * 3600 * 1000);
   return { day: d.getUTCDay(), hour: d.getUTCHours(), min: d.getUTCMinutes(), mins: d.getUTCHours() * 60 + d.getUTCMinutes() };
 }
-let lastSignalScan = 0, lastNews = 0;
+let lastSignalScan = 0, lastNews = 0, lastIdeasScan = 0, lastSnapDate = '';
 function scheduleTick() {
   const t = istNow();
   const weekday = t.day >= 1 && t.day <= 5;
   const preOpen = weekday && t.mins >= 525 && t.mins < 555;       // 08:45–09:15
   const session = weekday && t.mins >= 555 && t.mins <= 930;      // 09:15–15:30
-  const postClose = weekday && t.mins >= 945 && t.mins < 975;     // 16:15–16:15+
+  const postClose = weekday && t.mins >= 945 && t.mins < 975;     // 16:15 window
   const sinceSig = Date.now() - lastSignalScan;
   // pre-open + post-close: once; during session: every ~20 min
   if (((preOpen || postClose) && sinceSig > 25 * 60 * 1000) || (session && sinceSig > 20 * 60 * 1000)) {
     lastSignalScan = Date.now();
     signals.ensure(holdingSymbols(), true);
+  }
+  // Ideas / Top Picks: warm pre-open and again mid-session, so the tab is never cold
+  const sinceIdeas = Date.now() - lastIdeasScan;
+  if ((preOpen && sinceIdeas > 60 * 60 * 1000) ||
+      (weekday && t.mins >= 750 && t.mins < 780 && sinceIdeas > 60 * 60 * 1000)) { // ~12:30
+    lastIdeasScan = Date.now();
+    ideas.ensure(true);
   }
   // news radar every ~25 min while relevant (weekday 08:00–18:00), else hourly
   const newsWindow = weekday && t.mins >= 480 && t.mins <= 1080;
@@ -935,9 +1021,22 @@ function scheduleTick() {
     lastNews = Date.now();
     buildNewsRadar().catch(() => {});
   }
+  // daily portfolio snapshot after close (weekdays); baseline immediately if none exists
+  const today = new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+  const snaps = loadSnaps();
+  const needBaseline = !snaps.length;
+  const duePostClose = weekday && t.mins >= 950 && lastSnapDate !== today &&
+    !snaps.some((s) => s.date === today);
+  if (needBaseline || duePostClose) {
+    lastSnapDate = today;
+    takeSnapshot().catch((e) => console.warn('[snapshot] failed:', e.message));
+  }
 }
 
-Promise.allSettled([portfolio.cloudRestore(), kite.cloudRestore(), watchlistCloudRestore(), alerts.cloudRestore()]).finally(() => {
+Promise.allSettled([
+  portfolio.cloudRestore(), kite.cloudRestore(), watchlistCloudRestore(),
+  alerts.cloudRestore(), ledger.cloudRestore(), snapshotsCloudRestore(),
+]).finally(() => {
   alerts.startChecker(getQuotes, 60 * 1000);
   setInterval(scheduleTick, 5 * 60 * 1000);
   setTimeout(scheduleTick, 20 * 1000); // one shortly after boot

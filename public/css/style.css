@@ -362,6 +362,39 @@ table.data tbody tr:hover { background: #f4f8ff; }
 .dh-opp-body .muted2 { color: #9db4d8; font-size: 0.72rem; display: block; margin-top: 2px; }
 .dh-opp-body .num { font-family: var(--mono); font-weight: 800; margin-top: 4px; }
 
+.mkt-state {
+  display: inline-block; margin-left: 10px; font-size: 0.58rem; font-weight: 800;
+  letter-spacing: 1px; padding: 3px 9px; border-radius: 12px; vertical-align: 1px;
+}
+.mkt-state.open { background: rgba(34, 224, 165, 0.18); color: #3ce3ab; }
+.mkt-state.pre { background: rgba(245, 185, 66, 0.18); color: #f5b942; }
+.mkt-state.closed { background: rgba(255, 255, 255, 0.12); color: #9db4d8; }
+
+.mypf-card {
+  display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap;
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  padding: 12px 18px; margin-bottom: 12px; cursor: pointer; box-shadow: var(--shadow);
+  transition: all 0.15s;
+}
+.mypf-card:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(15, 42, 92, 0.12); }
+.mypf-k { font-size: 0.62rem; font-weight: 800; letter-spacing: 1px; color: var(--muted); margin-right: 10px; }
+.mypf-card b { font-family: var(--mono); font-size: 1.15rem; }
+.mypf-side { display: flex; gap: 16px; flex-wrap: wrap; font-size: 0.76rem; font-weight: 600; align-items: center; }
+
+.screener-bar {
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  padding: 10px 16px; border-bottom: 1px solid var(--border); background: #fbfcfe;
+}
+.screener-bar select, .screener-bar input[type="number"] {
+  border: 1px solid var(--border); border-radius: 7px; padding: 6px 8px;
+  font-size: 0.76rem; font-weight: 600; max-width: 130px;
+}
+.screener-bar input[type="number"] { width: 76px; }
+
+.recon-box { margin-top: 12px; border-top: 1px dashed var(--border); padding-top: 10px; }
+.recon-title { font-size: 0.66rem; font-weight: 800; letter-spacing: 0.8px; color: var(--amber); margin-bottom: 7px; }
+.recon-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 4px 0; font-size: 0.82rem; }
+
 .econ-strip { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 12px; }
 .econ-strip::-webkit-scrollbar { display: none; }
 .econ-chip {
@@ -416,6 +449,25 @@ table.data tbody tr:hover { background: #f4f8ff; }
 .cmd-signal .cs-text { font-size: 0.82rem; color: #3c4a63; margin-top: 5px; line-height: 1.5; }
 
 /* ---------- signals ---------- */
+.regime-strip {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  border-radius: 10px; padding: 10px 15px; margin-bottom: 10px; font-size: 0.82rem;
+  border: 1px solid var(--border);
+}
+.regime-strip.bull { background: var(--green-bg); border-color: #bfe8d9; }
+.regime-strip.bear { background: var(--red-bg); border-color: #f3caca; }
+.track-strip {
+  background: #f2f6ff; border: 1px solid #d5e2f7; border-radius: 10px;
+  padding: 10px 15px; margin-bottom: 12px; font-size: 0.8rem; color: #2b3a52; line-height: 1.5;
+}
+.measured-chip {
+  font-size: 0.68rem; font-weight: 700; padding: 2px 9px; border-radius: 12px;
+  background: #eef2f7; color: var(--muted);
+}
+.measured-chip.up { background: var(--green-bg); color: var(--green); }
+.measured-chip.down { background: var(--red-bg); color: var(--red); }
+.measured-chip.pending { font-style: italic; }
+.warn-card { border-left: 3px solid var(--red); }
 .sig-card {
   background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 14px 15px;
   cursor: pointer; transition: all 0.15s; box-shadow: var(--shadow);

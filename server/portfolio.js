@@ -375,6 +375,38 @@ function deleteTransaction(id, txId) {
   return getPortfolio(id);
 }
 
+/**
+ * One-time cost-basis reconciliation for corporate-action distortions
+ * (demergers/splits import at near-zero cost → +1,200% phantom gains).
+ * Replaces the symbol's transactions with a single Buy of the current net
+ * quantity at the user-confirmed average cost.
+ */
+function reconcileCost(id, symbol, avgPrice) {
+  const st = loadState();
+  const pf = st.portfolios.find((p) => p.id === id);
+  if (!pf) throw new Error('Portfolio not found');
+  const price = +avgPrice;
+  if (!Number.isFinite(price) || price <= 0) throw new Error('Invalid average cost');
+  const txs = pf.transactions.filter((t) => t.symbol === symbol);
+  if (!txs.length) throw new Error('Holding not found');
+  const netQty = txs.reduce((a, t) => a + (t.type === 'SELL' ? -t.qty : t.qty), 0);
+  if (netQty <= 0) throw new Error('No net quantity to reconcile');
+  const name = txs[txs.length - 1].name || symbol;
+  const earliest = txs.reduce((a, t) => (t.date < a ? t.date : a), txs[0].date);
+  pf.transactions = pf.transactions.filter((t) => t.symbol !== symbol);
+  pf.transactions.push({
+    id: 'tx' + Date.now() + '_recon',
+    symbol, name,
+    type: 'BUY',
+    qty: netQty,
+    price,
+    date: earliest,
+    reconciled: true,
+  });
+  saveState(st);
+  return getPortfolio(id);
+}
+
 function removeHolding(id, symbol) {
   const st = loadState();
   const pf = st.portfolios.find((p) => p.id === id);
@@ -432,6 +464,7 @@ module.exports = {
   renamePortfolio,
   deletePortfolio,
   getPortfolio,
+  reconcileCost,
   addTransaction,
   deleteTransaction,
   removeHolding,

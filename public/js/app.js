@@ -85,6 +85,7 @@ function pct(n, sign = true) {
 }
 function cls(n) { return n > 0 ? 'up' : n < 0 ? 'down' : ''; }
 function fx(v, dec = 1, suf = '') { return typeof v === 'number' && isFinite(v) ? v.toFixed(dec) + suf : '—'; }
+function money2(v) { return (v >= 0 ? '+' : '−') + '₹' + inr(Math.abs(v), 0); }
 function arrow(n) { return n > 0 ? '▲' : n < 0 ? '▼' : '•'; }
 function esc(s) { return String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 function dispSym(s) { return s.replace(/\.(NS|BO)$/, ''); }
@@ -253,16 +254,32 @@ function istGreeting() {
   return 'Good evening 🌆';
 }
 
+/** NSE session state from the IST clock (holidays not tracked — weekdays only). */
+function marketState() {
+  const fmt = new Intl.DateTimeFormat('en-IN', { hour: 'numeric', minute: 'numeric', hour12: false, weekday: 'short', timeZone: 'Asia/Kolkata' });
+  const parts = Object.fromEntries(fmt.formatToParts(new Date()).map((p) => [p.type, p.value]));
+  const mins = (+parts.hour) * 60 + (+parts.minute);
+  const weekday = !['Sat', 'Sun'].includes(parts.weekday);
+  if (!weekday) return { label: 'WEEKEND', cls: 'closed', note: 'opens Monday 9:15' };
+  if (mins >= 540 && mins < 555) return { label: 'PRE-OPEN', cls: 'pre', note: 'auction till 9:15' };
+  if (mins >= 555 && mins <= 930) return { label: 'MARKET OPEN', cls: 'open', note: 'closes 15:30' };
+  if (mins < 540) return { label: 'CLOSED', cls: 'closed', note: 'pre-open 9:00' };
+  return { label: 'CLOSED', cls: 'closed', note: 'opens 9:15 next session' };
+}
+
 async function renderDashboard() {
   app.innerHTML = `
     <div class="dash-hero">
       <div class="dh-left">
         <div class="dh-greet">${istGreeting()}</div>
-        <div class="dh-date">${new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Asia/Kolkata' })}</div>
+        <div class="dh-date">${new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Asia/Kolkata' })}
+          ${(() => { const ms = marketState(); return `<span class="mkt-state ${ms.cls}" title="${ms.note}">${ms.label}</span>`; })()}
+        </div>
         <div class="dh-idx" id="dh-idx"><span class="skeleton" style="width:220px;height:40px;display:inline-block"></span></div>
       </div>
       <div class="dh-opp" id="dh-opp"></div>
     </div>
+    <div id="dash-mypf"></div>
     <div class="econ-strip" id="econ-strip"></div>
     <div class="page-sub" id="dash-sub" style="margin-top:4px"></div>
     <div class="index-row" id="index-row">${'<div class="index-card"><div class="skeleton" style="height:52px"></div></div>'.repeat(6)}</div>
@@ -346,6 +363,24 @@ async function renderDashboard() {
           loadExtras();
         };
       });
+    } catch {}
+    // my portfolio today (summary only; heavier detail lives on the Portfolio tab)
+    try {
+      const pf = await api('/api/portfolios/all');
+      const s = pf.summary;
+      const movers = pf.holdings.filter((h) => h.dayPnl != null).sort((a, b) => b.dayPnl - a.dayPnl);
+      const up = movers[0], down = movers[movers.length - 1];
+      $('#dash-mypf').innerHTML = `
+        <div class="mypf-card" onclick="location.hash='#/portfolio'">
+          <div><span class="mypf-k">MY PORTFOLIO TODAY</span>
+            <b class="num ${cls(s.dayPnl)}">${s.dayPnl >= 0 ? '+' : '−'}₹${inr(Math.abs(s.dayPnl), 0)}</b>
+            <span class="num muted" style="font-size:.74rem">(${pct(s.current ? (s.dayPnl / s.current) * 100 : 0)})</span></div>
+          <div class="mypf-side">
+            <span>Net <b class="num">₹${inr(s.current, 0)}</b></span>
+            ${up ? `<span class="up num">▲ ${esc(dispSym(up.symbol))} ${money2(up.dayPnl)}</span>` : ''}
+            ${down && down !== up ? `<span class="down num">▼ ${esc(dispSym(down.symbol))} ${money2(down.dayPnl)}</span>` : ''}
+          </div>
+        </div>`;
     } catch {}
     // alerts
     try {
@@ -441,11 +476,75 @@ async function renderMarkets() {
         <div class="seg"><button class="active" data-mv="table">Table</button><button data-mv="heat">Heatmap</button></div>
         <span class="muted" style="font-size:.74rem; margin-left:auto" id="mkt-count"></span>
       </div>
+      <div class="screener-bar" id="screener-bar">
+        <select id="sc-sector"><option value="">All sectors</option></select>
+        <select id="sc-mcap">
+          <option value="">Any size</option>
+          <option value="large">Large ≥ ₹50k Cr</option>
+          <option value="mid">Mid ₹10–50k Cr</option>
+          <option value="small">Small &lt; ₹10k Cr</option>
+        </select>
+        <input id="sc-pe" type="number" placeholder="P/E ≤" min="1" />
+        <label class="chart-toggle"><input type="checkbox" id="sc-near-high"/> ≤10% off 52w-high</label>
+        <label class="chart-toggle"><input type="checkbox" id="sc-vol"/> Vol ≥ 2× avg</label>
+        <button class="btn sm" id="sc-clear">Clear</button>
+        <button class="btn sm" id="sc-export">⬇ CSV</button>
+      </div>
       <div style="overflow-x:auto" id="mkt-table"><div class="spinner"></div></div>
     </div>`;
 
   let rows = [];
   let mktView = 'table';
+  const screen = JSON.parse(localStorage.getItem('mktScreen') || '{}');
+
+  function applyScreen(list) {
+    let v = list;
+    if (screen.sector) v = v.filter((r) => r.sector === screen.sector);
+    if (screen.mcap) {
+      v = v.filter((r) => {
+        const m = r.quote.marketCap;
+        if (!m) return false;
+        if (screen.mcap === 'large') return m >= 50000e7;
+        if (screen.mcap === 'mid') return m >= 10000e7 && m < 50000e7;
+        return m < 10000e7;
+      });
+    }
+    if (screen.pe) v = v.filter((r) => r.quote.pe != null && r.quote.pe > 0 && r.quote.pe <= screen.pe);
+    if (screen.nearHigh) v = v.filter((r) => r.quote.yearHigh && r.quote.price >= r.quote.yearHigh * 0.9);
+    if (screen.vol) v = v.filter((r) => r.quote.avgVolume3m && r.quote.volume >= 2 * r.quote.avgVolume3m);
+    return v;
+  }
+
+  function syncScreenUI() {
+    $('#sc-sector').value = screen.sector || '';
+    $('#sc-mcap').value = screen.mcap || '';
+    $('#sc-pe').value = screen.pe || '';
+    $('#sc-near-high').checked = !!screen.nearHigh;
+    $('#sc-vol').checked = !!screen.vol;
+  }
+  function saveScreen() { localStorage.setItem('mktScreen', JSON.stringify(screen)); draw(); }
+  $('#sc-sector').onchange = (e) => { screen.sector = e.target.value; saveScreen(); };
+  $('#sc-mcap').onchange = (e) => { screen.mcap = e.target.value; saveScreen(); };
+  $('#sc-pe').onchange = (e) => { screen.pe = parseFloat(e.target.value) || null; saveScreen(); };
+  $('#sc-near-high').onchange = (e) => { screen.nearHigh = e.target.checked; saveScreen(); };
+  $('#sc-vol').onchange = (e) => { screen.vol = e.target.checked; saveScreen(); };
+  $('#sc-clear').onclick = () => { for (const k of Object.keys(screen)) delete screen[k]; syncScreenUI(); saveScreen(); };
+  $('#sc-export').onclick = () => {
+    const view = applyScreen(rows);
+    const head = 'Symbol,Name,Sector,LTP,Change %,Day High,Day Low,Volume,P/E,Market Cap,52w High,52w Low';
+    const lines = view.map((r) => {
+      const q = r.quote;
+      return [dispSym(r.symbol), `"${(r.name || '').replace(/"/g, '')}"`, r.sector, q.price, q.changePct?.toFixed(2), q.dayHigh, q.dayLow, q.volume, q.pe ?? '', q.marketCap ?? '', q.yearHigh ?? '', q.yearLow ?? ''].join(',');
+    });
+    const blob = new Blob([head + '\n' + lines.join('\n')], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `stockdesk-screen-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast(`Exported ${view.length} rows`, 'ok');
+  };
+
   $$('.seg [data-mv]').forEach((b) => {
     b.onclick = () => {
       $$('.seg [data-mv]').forEach((x) => x.classList.remove('active'));
@@ -477,7 +576,7 @@ async function renderMarkets() {
 
   function draw() {
     const f = ($('#mkt-filter')?.value || '').toLowerCase();
-    let view = rows.filter(
+    let view = applyScreen(rows).filter(
       (r) => !f || r.name.toLowerCase().includes(f) || r.symbol.toLowerCase().includes(f) || (r.sector || '').toLowerCase().includes(f)
     );
     const { key, dir } = marketSort;
@@ -546,6 +645,12 @@ async function renderMarkets() {
       const health = m.universeHealth || { expected: rows.length, loaded: rows.length, failed: [] };
       const missing = health.failed?.length ? ` · ${health.failed.length} unavailable: ${health.failed.map(dispSym).join(', ')}` : '';
       $('#mkt-health').innerHTML = `<b>${health.loaded}/${health.expected}</b> loaded · ${m.source === 'kite' ? 'Kite live + Yahoo reference fields' : 'Yahoo delayed'}${missing}`;
+      const sectors = [...new Set(rows.map((r) => r.sector).filter(Boolean))].sort();
+      const sel = $('#sc-sector');
+      if (sel && sel.options.length <= 1) {
+        sel.innerHTML = '<option value="">All sectors</option>' + sectors.map((s) => `<option>${esc(s)}</option>`).join('');
+      }
+      syncScreenUI();
       draw();
     } catch (e) {
       $('#mkt-table').innerHTML = `<div class="empty">Failed to load: ${esc(e.message)}</div>`;
@@ -617,6 +722,7 @@ async function renderSignals() {
         <span>Expires ${s.expirySessions ?? 5} sessions</span>
         <span>RSI ${s.rsi ?? '—'}</span>
         <span>Vol ${s.volMult}×</span>
+        ${s.rs63 != null ? `<span title="63-session return minus NIFTY's — positive = outperforming the index" class="${cls(s.rs63)}">RS ${pct(s.rs63)}</span>` : ''}
       </div>
       <ul class="pt-list" style="margin-top:8px">
         ${s.reasons.map((r) => `<li class="pos"><span class="ico">+</span><span style="font-size:.76rem">${esc(r)}</span></li>`).join('')}
@@ -644,12 +750,60 @@ async function renderSignals() {
     }
     const r = st.results;
     $('#sig-sub').textContent = `${r.totalSetups} live setups across ${r.scanned} charts · updated ${istTime(st.builtAt)} · auto-refreshes`;
-    $('#sig-body').innerHTML = `
-      <div style="display:flex; justify-content:flex-end; margin-bottom:10px"><button class="btn sm" id="sig-rescan">↻ Re-scan now</button></div>
-      ${r.groups.map((g) => `<div style="margin-bottom:22px">
+
+    const measuredChip = (m) => {
+      if (!m || m.winRate == null) {
+        return `<span class="measured-chip pending" title="The scanner tracks every setup it publishes; measured win-rates appear after 5+ closed outcomes">Measured: building record${m && m.closed ? ` (${m.closed} closed)` : ''}…</span>`;
+      }
+      const good = m.winRate >= 50;
+      return `<span class="measured-chip ${good ? 'up' : 'down'}" title="This scanner's own tracked outcomes: ${m.wins}W / ${m.losses}L / ${m.expired} expired">Measured: ${m.winRate}% wins (${m.closed} closed)</span>`;
+    };
+
+    const regimeBanner = r.regime ? `
+      <div class="regime-strip ${r.regime.regime}">
+        <b>${r.regime.regime === 'bull' ? '🟢 BULL TAPE' : '🔴 BEAR TAPE'}</b>
+        <span>${esc(r.regime.text)}</span>
+        <span class="num muted" style="margin-left:auto">NIFTY ${inr(r.regime.nifty, 0)} vs 200-DMA ${inr(r.regime.sma200, 0)}</span>
+      </div>` : '';
+
+    const ov = r.measured?.overall;
+    const trackRecord = ov && ov.closed > 0 ? `
+      <div class="track-strip">
+        📒 <b>Scanner track record</b> — ${ov.wins} target hits · ${ov.losses} stopped · ${ov.expired} expired
+        ${ov.winRate != null ? ` · <b>${ov.winRate}% win-rate</b>` : ''}
+        ${ov.avgResultPct != null ? ` · avg ${pct(ov.avgResultPct)}/trade` : ''}
+        · ${ov.open} open now — every published setup is tracked to its outcome
+      </div>` : `
+      <div class="track-strip">📒 <b>Outcome tracking is ON</b> — every setup below is now recorded and marked to target/stop/expiry. Measured win-rates replace “rule priors” as evidence accumulates.</div>`;
+
+    const warningsBlock = (r.warnings || []).length ? `
+      <div style="margin-bottom:22px">
         <div style="display:flex; align-items:baseline; gap:10px; margin-bottom:10px">
+          <div class="card-title" style="color:var(--red)">⚠ Your Holdings — Risk Warnings (${r.warnings.length})</div>
+          <span class="muted" style="font-size:.74rem">deteriorating charts in stocks you own</span>
+        </div>
+        <div class="ideas-grid">${r.warnings.map((w) => `
+          <div class="sig-card warn-card" onclick="location.hash='#/stock/${encodeURIComponent(w.symbol)}'">
+            <div class="sig-head">
+              <div><span class="s-sym" style="font-size:.95rem">${esc(dispSym(w.symbol))}</span>
+                <span class="chg-pill down" style="font-size:.62rem">${esc(w.label)}</span></div>
+              <span class="sig-q" style="background:var(--red)">${w.severity === 'high' ? '!!' : '!'}</span>
+            </div>
+            <div class="s-name" style="margin:2px 0 8px">${esc(w.name)} · ₹${inr(w.price)}</div>
+            <ul class="pt-list">${w.reasons.map((x) => `<li class="neg"><span class="ico">−</span><span style="font-size:.76rem">${esc(x)}</span></li>`).join('')}</ul>
+          </div>`).join('')}</div>
+      </div>` : '';
+
+    $('#sig-body').innerHTML = `
+      ${regimeBanner}
+      ${trackRecord}
+      <div style="display:flex; justify-content:flex-end; margin-bottom:10px"><button class="btn sm" id="sig-rescan">↻ Re-scan now</button></div>
+      ${warningsBlock}
+      ${r.groups.map((g) => `<div style="margin-bottom:22px">
+        <div style="display:flex; align-items:baseline; gap:10px; margin-bottom:10px; flex-wrap:wrap">
           <div class="card-title">${esc(g.label)} <span style="color:var(--muted)">(${g.setups.length})</span></div>
           <span class="muted" style="font-size:.74rem">${esc(g.subtitle)}</span>
+          ${measuredChip(g.measured)}
         </div>
         <div class="ideas-grid">${g.setups.map(setupCard).join('')}</div>
       </div>`).join('') || '<div class="card"><div class="empty">No clean setups right now — the scanner stays quiet rather than forcing trades. Check back after the next scan.</div></div>'}`;
@@ -1679,7 +1833,21 @@ async function renderPortfolio() {
         <div><span>Today</span><b class="${cls(s.dayPnl)}">${money(s.dayPnl, true)}</b></div>
         <div><span>Positions</span><b>${s.count}</b></div>
         ${isAll() ? `<div><span>Accounts</span><b>${(pfData.accounts || []).length}</b></div>` : ''}
+        ${isAll() ? `<div id="hero-bench"></div>` : ''}
       </div>`;
+    if (isAll()) loadBenchmark();
+  }
+
+  async function loadBenchmark() {
+    try {
+      const h = await api('/api/portfolio-history');
+      const el = $('#hero-bench');
+      if (!el || !h.since) return;
+      const p = h.since.portfolioPct, nf = h.since.niftyPct;
+      const alpha = p != null && nf != null ? +(p - nf).toFixed(2) : null;
+      el.innerHTML = `<span>vs NIFTY since ${esc(h.since.baselineDate.slice(5))}</span>
+        <b class="${cls(alpha)}">${p != null ? pct(p) : '—'} <small style="font-weight:600">(NIFTY ${nf != null ? pct(nf) : '—'}${alpha != null ? ` · α ${pct(alpha)}` : ''})</small></b>`;
+    } catch { /* benchmark is additive; never break the hero */ }
   }
 
   function drawAccounts() {
@@ -1759,6 +1927,19 @@ async function renderPortfolio() {
         <div class="card-head"><span class="card-title">Portfolio Insights</span></div>
         <div class="card-body">
           <ul class="insight-list">${(pfData.insights?.insights || []).map((i) => `<li class="ins-${i.level}"><span class="ins-ico">${i.level === 'warn' ? '⚠' : i.level === 'ok' ? '✓' : 'ℹ'}</span>${esc(i.text)}</li>`).join('')}</ul>
+          ${(() => {
+            const flagged = pfData.holdings.filter((h) => h.qualityFlags?.length);
+            if (!flagged.length) return '';
+            return `<div class="recon-box">
+              <div class="recon-title">Needs reconciliation</div>
+              ${flagged.slice(0, 6).map((h) => `<div class="recon-row">
+                <div><b>${esc(dispSym(h.symbol))}</b> <span class="muted" style="font-size:.72rem">${esc(h.qualityFlags[0])}</span></div>
+                ${isAll()
+                  ? `<span class="muted" style="font-size:.7rem">open ${esc((h.accounts || []).map((a) => a.name).join('/') || 'the account')} to fix</span>`
+                  : `<button class="btn sm" data-recon="${esc(h.symbol)}" data-qty="${h.qty}">Fix cost</button>`}
+              </div>`).join('')}
+            </div>`;
+          })()}
           ${pfData.insights?.best || pfData.insights?.worst ? `<div class="bw-row">
             ${pfData.insights.best ? `<div class="bw best" onclick="location.hash='#/stock/${encodeURIComponent(pfData.insights.best.symbol)}'"><span>BEST</span><b>${esc(dispSym(pfData.insights.best.symbol))}</b><i class="up">${pct(pfData.insights.best.pnlPct)}</i></div>` : ''}
             ${pfData.insights.worst ? `<div class="bw worst" onclick="location.hash='#/stock/${encodeURIComponent(pfData.insights.worst.symbol)}'"><span>WORST</span><b>${esc(dispSym(pfData.insights.worst.symbol))}</b><i class="down">${pct(pfData.insights.worst.pnlPct)}</i></div>` : ''}
@@ -1772,6 +1953,28 @@ async function renderPortfolio() {
           <div><div class="mini-h down">▼ Dragging it down</div>${byDay.slice(-5).reverse().map(moverRow).join('')}</div>
         </div>
       </div>`;
+
+    $$('#pf-mid [data-recon]').forEach((b) => {
+      b.onclick = async (e) => {
+        e.stopPropagation();
+        const sym = b.dataset.recon;
+        const v = prompt(
+          `True average cost per share for ${dispSym(sym)} (qty ${b.dataset.qty})?\n\n` +
+          'For demerged/split shares, use the exchange-notified acquisition cost, or your original buy price.'
+        );
+        if (v == null) return;
+        const price = parseFloat(v);
+        if (!isFinite(price) || price <= 0) return toast('Enter a valid price', 'err');
+        try {
+          await api(`/api/portfolios/${activePfId}/reconcile`, {
+            method: 'POST',
+            body: JSON.stringify({ symbol: sym, avgPrice: price }),
+          });
+          toast(`${dispSym(sym)} cost basis fixed ✓`, 'ok');
+          load();
+        } catch (err) { toast(err.message, 'err'); }
+      };
+    });
   }
 
   function draw() {

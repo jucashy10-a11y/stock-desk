@@ -82,6 +82,39 @@ function remove(id) {
   save(load().filter((a) => a.id !== id));
 }
 
+/**
+ * Pre-triggered notification (used by the signal→alert bridge): lands in the
+ * alerts feed already "fired" so new setups surface without opening Signals.
+ */
+function notify({ symbol, name, note }) {
+  const alerts = load();
+  const dupe = alerts.find(
+    (a) => a.type === 'signal' && a.symbol === symbol && a.label === note &&
+      Date.now() - (a.triggeredAt || 0) < 3 * 24 * 3600 * 1000
+  );
+  if (dupe) return null;
+  const a = {
+    id: 'al' + Date.now() + Math.random().toString(36).slice(2, 6),
+    symbol, name: name || symbol, type: 'signal',
+    price: null, pct: null,
+    label: note,
+    status: 'triggered',
+    createdAt: Date.now(),
+    triggeredAt: Date.now(),
+    triggerNote: note,
+  };
+  alerts.push(a);
+  // keep the signal-notification backlog bounded
+  const sigs = alerts.filter((x) => x.type === 'signal').sort((x, y) => y.triggeredAt - x.triggeredAt);
+  if (sigs.length > 20) {
+    const drop = new Set(sigs.slice(20).map((x) => x.id));
+    save(alerts.filter((x) => !drop.has(x.id)));
+  } else {
+    save(alerts);
+  }
+  return a;
+}
+
 function reset(id) {
   const alerts = load();
   const a = alerts.find((x) => x.id === id);
@@ -131,4 +164,4 @@ function startChecker(getQuotes, everyMs = 60 * 1000) {
   timer = setInterval(() => check(getQuotes).catch(() => {}), everyMs);
 }
 
-module.exports = { list, add, remove, reset, cloudRestore, startChecker, check };
+module.exports = { list, add, remove, reset, notify, cloudRestore, startChecker, check };

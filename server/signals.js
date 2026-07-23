@@ -11,6 +11,7 @@
  */
 
 const yahoo = require('./yahoo');
+const ledger = require('./ledger');
 const { UNIVERSE } = require('./symbols');
 
 let state = { status: 'idle', progress: 0, total: 0, results: null, builtAt: 0, error: null };
@@ -82,7 +83,52 @@ function safeStop(entry, candidates, maxRiskPct = MAX_STOP_PCT) {
   return Math.min(capped, entry * (1 - MIN_STOP_PCT / 100));
 }
 
-function detectSetups(sym, name, sector, candles) {
+/**
+ * Risk warnings for stocks the user HOLDS — the bearish mirror of the setups.
+ * A terminal that only finds entries protects nobody; these flag deteriorating
+ * charts in the portfolio before the damage compounds.
+ */
+function detectWarnings(sym, name, sector, candles) {
+  if (!candles || candles.length < 220) return [];
+  const closes = candles.map((c) => c.close);
+  const lows = candles.map((c) => c.low);
+  const vols = candles.map((c) => c.volume || 0);
+  const n = closes.length;
+  const price = closes[n - 1];
+  const s50 = sma(closes, 50), s200 = sma(closes, 200);
+  const s50p = sma(closes, 50, n - 5), s200p = sma(closes, 200, n - 5);
+  const vAvg20 = sma(vols, 20, n) || 0;
+  const volMult = vAvg20 > 0 ? vols[n - 1] / vAvg20 : 0;
+  const prior20Low = Math.min(...lows.slice(n - 21, n - 1));
+  const out = [];
+
+  if (price < prior20Low && volMult >= 1.3 && s50 != null && price < s50) {
+    out.push({
+      type: 'warn_breakdown', label: 'Support Breakdown', severity: 'high',
+      reasons: [
+        `Closed below 20-day support ₹${round2(prior20Low)} on ${volMult.toFixed(1)}× volume`,
+        'Sellers in control below the 50-DMA — review the position',
+      ],
+    });
+  }
+  if (s50 != null && s200 != null && s50p != null && s200p != null &&
+      s50 < s200 && s50p >= s200p && price < s200) {
+    out.push({
+      type: 'warn_deathcross', label: 'Death Cross', severity: 'medium',
+      reasons: [
+        '50-DMA just crossed below the 200-DMA — classic trend-deterioration signal',
+        `Price ₹${round2(price)} under the 200-DMA ₹${round2(s200)}`,
+      ],
+    });
+  }
+  for (const w of out) {
+    w.symbol = sym; w.name = name; w.sector = sector; w.price = round2(price);
+    w.volMult = round2(volMult);
+  }
+  return out;
+}
+
+function detectSetups(sym, name, sector, candles, ctx = {}) {
   if (!candles || candles.length < 220) return [];
   const closes = candles.map((c) => c.close);
   const highs = candles.map((c) => c.high);
@@ -203,29 +249,63 @@ function detectSetups(sym, name, sector, candles) {
   }
 
   // attach common context
+  const rs63 = ctx.niftyRet63 != null && ret(63) != null ? ret(63) - ctx.niftyRet63 : null;
   for (const s of out) {
     s.symbol = sym; s.name = name; s.sector = sector; s.price = round2(price);
     s.rsi = r != null ? Math.round(r) : null;
     s.volMult = round2(volMult);
     s.pctFromHigh = round2(((price - yearHigh) / yearHigh) * 100);
-    s.quality = Math.round(Math.min(s.quality, 99));
+    // market regime: long breakout/momentum setups have worse odds in a bear tape
+    s.regime = ctx.regime || null;
+    if (ctx.regime === 'bear' && ['breakout', 'high52', 'momentum'].includes(s.type)) {
+      s.quality -= 8;
+      s.reasons.push('⚠ NIFTY is below its 200-DMA — breakout odds are historically weaker in this regime');
+    }
+    s.rs63 = rs63 != null ? round2(rs63) : null; // relative strength vs NIFTY, 63 sessions
+    if (rs63 != null && rs63 > 10) s.quality += 4;
+    s.quality = Math.round(Math.max(1, Math.min(s.quality, 99)));
     s.trendUp = trendUp;
     s.riskPerShare = round2(s.entry - s.stop);
     s.riskPct = round2(Math.abs(s.stopPct));
     s.expirySessions = s.type === 'goldencross' || s.type === 'momentum' ? 10 : 5;
     s.dataAsOf = candles[n - 1]?.time ? candles[n - 1].time * 1000 : null;
-    s.modelVersion = 'signals-v2';
+    s.modelVersion = 'signals-v3';
   }
   return out.filter((s) => s.rr >= 1.4 && s.stop < s.entry && Math.abs(s.stopPct) <= MAX_STOP_PCT);
 }
 
 // ---------- scan ----------
+let onNewSetups = null; // injected by index.js for the signal→alert bridge
+
 async function build(extraSymbols = []) {
+  const holdings = new Set(extraSymbols);
   const list = [...new Set([...UNIVERSE.map((u) => u.symbol), ...extraSymbols])];
   const meta = new Map(UNIVERSE.map((u) => [u.symbol, u]));
   state.total = list.length;
   state.progress = 0;
+
+  // market regime: NIFTY vs its 200-DMA gates long-side quality
+  let ctx = {};
+  let regimeInfo = null;
+  try {
+    const nh = await yahoo.history('^NSEI', '1y', '1d');
+    const nc = nh.candles.map((c) => c.close);
+    const n200 = sma(nc, 200);
+    const nPrice = nc[nc.length - 1];
+    const nRet63 = nc.length > 63 ? ((nPrice - nc[nc.length - 64]) / nc[nc.length - 64]) * 100 : null;
+    ctx = { regime: n200 != null && nPrice > n200 ? 'bull' : 'bear', niftyRet63: nRet63 };
+    regimeInfo = {
+      regime: ctx.regime,
+      nifty: round2(nPrice),
+      sma200: n200 != null ? round2(n200) : null,
+      text: ctx.regime === 'bull'
+        ? 'NIFTY above its 200-DMA — trend-following setups have their normal odds'
+        : 'NIFTY below its 200-DMA — long breakouts fail more often in this tape; quality scores are penalised',
+    };
+  } catch { /* regime unknown — proceed without */ }
+
   const all = [];
+  const warnings = [];
   const CONC = 6;
   for (let i = 0; i < list.length; i += CONC) {
     await Promise.all(
@@ -233,13 +313,25 @@ async function build(extraSymbols = []) {
         try {
           const h = await yahoo.history(sym, '1y', '1d');
           const m = meta.get(sym);
-          const setups = detectSetups(sym, m?.name || sym, m?.sector || '', h.candles);
-          all.push(...setups);
+          const nm = m?.name || sym;
+          const sec = m?.sector || '';
+          all.push(...detectSetups(sym, nm, sec, h.candles, ctx));
+          if (holdings.has(sym)) warnings.push(...detectWarnings(sym, nm, sec, h.candles));
+          // outcome ledger: close any open entries this chart resolves (no extra API cost)
+          ledger.evaluate(sym, h.candles);
         } catch { /* skip */ }
         state.progress++;
       })
     );
   }
+
+  // record fresh setups; bridge genuinely new, high-quality ones to notifications
+  const newEntries = ledger.record(all);
+  if (newEntries.length && typeof onNewSetups === 'function') {
+    try { onNewSetups(all.filter((s) => s.quality >= 70 && newEntries.some((e) => e.symbol === s.symbol && e.type === s.type))); }
+    catch { /* notifications must never break the scan */ }
+  }
+  const measured = ledger.stats();
 
   // group by setup type, best-quality first
   const byType = {};
@@ -253,18 +345,25 @@ async function build(extraSymbols = []) {
     ['momentum', 'Momentum Leaders', 'Sustained trending outperformers'],
     ['reclaim', 'Pullback Entries', 'Bounces off the 50-DMA in an uptrend'],
     ['volume', 'Volume Surges', 'Unusual volume with a price thrust'],
-  ].map(([key, label, subtitle]) => ({ key, label, subtitle, setups: (byType[key] || []).slice(0, 12) }))
-    .filter((g) => g.setups.length);
+  ].map(([key, label, subtitle]) => ({
+    key, label, subtitle,
+    setups: (byType[key] || []).slice(0, 12),
+    measured: measured.byType[key] || null,
+  })).filter((g) => g.setups.length);
 
+  warnings.sort((a, b) => (a.severity === 'high' ? -1 : 1) - (b.severity === 'high' ? -1 : 1));
   const top = [...all].sort((a, b) => b.quality - a.quality).slice(0, 8);
 
   state = {
     status: 'ready', progress: state.total, total: state.total, builtAt: Date.now(), error: null,
     results: {
-      groups, top, totalSetups: all.length, scanned: list.length,
+      groups, top, warnings, regime: regimeInfo,
+      measured: { overall: measured.overall, totalEntries: measured.totalEntries },
+      totalSetups: all.length, scanned: list.length,
       disclaimer:
         'Mechanical technical signals from price & volume — NOT investment advice or guaranteed trades. ' +
-        'Entry/stop/target are suggested levels. Reference priors are unvalidated heuristics, not backtested performance. ' +
+        'Entry/stop/target are suggested levels. "Rule prior" is an unvalidated heuristic; "Measured" is this ' +
+        'scanner\'s own tracked record (small samples early on — treat with care). ' +
         'Setups fail regularly — always size positions to the stop-loss and do your own diligence.',
     },
   };
@@ -283,4 +382,6 @@ function ensure(extraSymbols = [], force = false) {
 }
 const peek = () => state;
 
-module.exports = { ensure, peek, build, detectSetups, safeStop, MAX_STOP_PCT, MIN_STOP_PCT };
+function setNewSetupHandler(fn) { onNewSetups = fn; }
+
+module.exports = { ensure, peek, build, detectSetups, detectWarnings, safeStop, setNewSetupHandler, MAX_STOP_PCT, MIN_STOP_PCT };
