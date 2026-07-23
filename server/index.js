@@ -514,16 +514,24 @@ app.get('/api/portfolio-history', wrap(async (req, res) => {
   const snaps = loadSnaps();
   let since = null;
   if (snaps.length) {
-    const base = snaps[0];
     const agg = portfolio.getAllAccounts();
     const quotes = await getQuotes([...new Set(agg.holdings.map((h) => h.symbol)), '^NSEI']);
-    const nowVal = valueHoldings(agg.holdings, quotes).summary.current;
+    const valuedNow = valueHoldings(agg.holdings, quotes).summary;
+    const nowVal = valuedNow.current;
     const niftyNow = quotes['^NSEI']?.price ?? null;
-    since = {
-      baselineDate: base.date,
-      portfolioPct: base.current ? +(((nowVal - base.current) / base.current) * 100).toFixed(2) : null,
-      niftyPct: base.nifty && niftyNow ? +(((niftyNow - base.nifty) / base.nifty) * 100).toFixed(2) : null,
-    };
+    // A raw value comparison is only valid while the invested cost base is
+    // unchanged. After a buy/sell/reconciliation, begin again from the first
+    // snapshot with the new base instead of reporting false alpha.
+    const tolerance = Math.max(1, Math.abs(valuedNow.invested) * 0.000001);
+    const base = snaps.find((s) => Math.abs((s.invested ?? NaN) - valuedNow.invested) <= tolerance);
+    since = base
+      ? {
+          baselineDate: base.date,
+          portfolioPct: base.current ? +(((nowVal - base.current) / base.current) * 100).toFixed(2) : null,
+          niftyPct: base.nifty && niftyNow ? +(((niftyNow - base.nifty) / base.nifty) * 100).toFixed(2) : null,
+          comparable: true,
+        }
+      : { comparable: false, needsBaseline: true };
   }
   res.json({ snaps, since });
 }));

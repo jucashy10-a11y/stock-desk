@@ -271,14 +271,20 @@ async function importCSV(portfolioId, csvText) {
 
 function computeHoldings(pf) {
   const bySymbol = new Map();
-  const txs = [...pf.transactions].sort((a, b) => (a.date < b.date ? -1 : 1));
+  const txs = [...pf.transactions].sort((a, b) => String(a.date).localeCompare(String(b.date)));
   for (const tx of txs) {
     let h = bySymbol.get(tx.symbol);
     if (!h) {
       h = { symbol: tx.symbol, name: tx.name, qty: 0, cost: 0, realized: 0 };
       bySymbol.set(tx.symbol, h);
     }
-    if (tx.type === 'BUY') {
+    if (tx.type === 'ADJUSTMENT') {
+      // Preserve the transaction ledger while resetting the carrying cost of
+      // the shares held at this point. Deleting this row cleanly undoes it.
+      if (h.qty > 0 && Number.isFinite(+tx.price) && +tx.price > 0) {
+        h.cost = h.qty * +tx.price;
+      }
+    } else if (tx.type === 'BUY') {
       h.cost += tx.qty * tx.price;
       h.qty += tx.qty;
     } else {
@@ -378,8 +384,8 @@ function deleteTransaction(id, txId) {
 /**
  * One-time cost-basis reconciliation for corporate-action distortions
  * (demergers/splits import at near-zero cost → +1,200% phantom gains).
- * Replaces the symbol's transactions with a single Buy of the current net
- * quantity at the user-confirmed average cost.
+ * Adds an auditable cost-basis adjustment while preserving every original
+ * buy/sell. Removing the adjustment restores the original calculation.
  */
 function reconcileCost(id, symbol, avgPrice) {
   const st = loadState();
@@ -392,16 +398,15 @@ function reconcileCost(id, symbol, avgPrice) {
   const netQty = txs.reduce((a, t) => a + (t.type === 'SELL' ? -t.qty : t.qty), 0);
   if (netQty <= 0) throw new Error('No net quantity to reconcile');
   const name = txs[txs.length - 1].name || symbol;
-  const earliest = txs.reduce((a, t) => (t.date < a ? t.date : a), txs[0].date);
-  pf.transactions = pf.transactions.filter((t) => t.symbol !== symbol);
   pf.transactions.push({
     id: 'tx' + Date.now() + '_recon',
     symbol, name,
-    type: 'BUY',
+    type: 'ADJUSTMENT',
     qty: netQty,
     price,
-    date: earliest,
+    date: new Date().toISOString().slice(0, 10),
     reconciled: true,
+    note: 'User-confirmed cost-basis adjustment; original transactions preserved',
   });
   saveState(st);
   return getPortfolio(id);
@@ -469,4 +474,5 @@ module.exports = {
   deleteTransaction,
   removeHolding,
   importCSV,
+  computeHoldings,
 };

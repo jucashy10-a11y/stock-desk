@@ -83,9 +83,8 @@ function record(setups) {
  * Evaluate open entries for one symbol against its candles (called from the
  * scan loop — zero extra API cost). Candle times are unix seconds.
  */
-function evaluate(symbol, candles) {
-  const l = load();
-  const open = l.entries.filter((e) => e.symbol === symbol && e.status === 'open');
+function evaluateEntries(entries, symbol, candles, now = Date.now()) {
+  const open = entries.filter((e) => e.symbol === symbol && e.status === 'open');
   if (!open.length || !candles?.length) return;
   let changed = false;
   for (const e of open) {
@@ -114,10 +113,16 @@ function evaluate(symbol, candles) {
       }
     }
     if (e.status !== 'open') {
-      e.closedAt = Date.now();
+      e.closedAt = now;
       changed = true;
     }
   }
+  return changed;
+}
+
+function evaluate(symbol, candles) {
+  const l = load();
+  const changed = evaluateEntries(l.entries, symbol, candles);
   if (changed) {
     // trim old closed entries
     const closed = l.entries.filter((e) => e.status !== 'open');
@@ -174,4 +179,4 @@ function recent(limit = 30) {
     .slice(0, limit);
 }
 
-module.exports = { record, evaluate, stats, recent, cloudRestore };
+module.exports = { record, evaluate, evaluateEntries, stats, recent, cloudRestore };

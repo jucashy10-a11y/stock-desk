@@ -1843,6 +1843,10 @@ async function renderPortfolio() {
       const h = await api('/api/portfolio-history');
       const el = $('#hero-bench');
       if (!el || !h.since) return;
+      if (!h.since.comparable) {
+        el.innerHTML = '<span>vs NIFTY</span><b class="muted" style="font-size:.72rem">New baseline pending after portfolio change</b>';
+        return;
+      }
       const p = h.since.portfolioPct, nf = h.since.niftyPct;
       const alpha = p != null && nf != null ? +(p - nf).toFixed(2) : null;
       el.innerHTML = `<span>vs NIFTY since ${esc(h.since.baselineDate.slice(5))}</span>
@@ -2093,7 +2097,7 @@ async function renderPortfolio() {
           ${txs.map((t) => `<tr>
             <td class="num" style="text-align:left">${esc(t.date)}</td>
             <td style="text-align:left"><b>${esc(dispSym(t.symbol))}</b> <span class="muted" style="font-size:.75rem">${esc(t.name)}</span></td>
-            <td><span class="chg-pill ${t.type === 'BUY' ? 'up' : 'down'}">${t.type}</span></td>
+            <td><span class="chg-pill ${t.type === 'BUY' ? 'up' : t.type === 'ADJUSTMENT' ? '' : 'down'}">${t.type === 'ADJUSTMENT' ? 'COST FIX' : t.type}</span></td>
             <td class="num">${inr(t.qty, 0)}</td>
             <td class="num">₹${inr(t.price)}</td>
             <td class="num">₹${inr(t.qty * t.price, 0)}</td>
